@@ -141,7 +141,7 @@ public class BitCube implements BitConstants {
 		private int y;
 		private int z;
 
-		Idx(int x, int y, int z) {
+		public Idx(int x, int y, int z) {
 			this.x = x;
 			this.y = y;
 			this.z = z;
