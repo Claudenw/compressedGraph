@@ -11,6 +11,7 @@ import com.hp.hpl.jena.util.iterator.Map1;
 
 public class CompressedGraph extends GraphBase {
 	
+	
 	private BitCube data = new BitCube();
 	private NodeMap map = new NodeMap();
 	
