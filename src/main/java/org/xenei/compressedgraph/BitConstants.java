@@ -17,7 +17,7 @@
  */
 package org.xenei.compressedgraph;
 
-
 public interface BitConstants {
-  public static final int  WILD = -1;
+	public static final int WILD = -1;
+	public static final int DEFAULT_PAGE_SIZE = 4096;
 }

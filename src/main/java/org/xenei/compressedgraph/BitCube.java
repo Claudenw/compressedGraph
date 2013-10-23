@@ -31,11 +31,16 @@ public class BitCube implements BitConstants {
 
 	private SparseArray<BitMatrix> depth;
 	private final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
-
+	private final int pageSize;
 	private int size;
 
 	public BitCube() {
-		depth = new SparseArray<BitMatrix>();
+		this(DEFAULT_PAGE_SIZE);
+	}
+
+	public BitCube(int pageSize) {
+		this.pageSize = pageSize;
+		depth = new SparseArray<BitMatrix>(pageSize);
 		size = 0;
 	}
 
@@ -50,7 +55,7 @@ public class BitCube implements BitConstants {
 		try {
 			BitMatrix bm = depth.get(z);
 			if (bm == null) {
-				bm = new BitMatrix();
+				bm = new BitMatrix(pageSize);
 			}
 			bm.set(x, y);
 			depth.put(z, bm);
@@ -128,10 +133,12 @@ public class BitCube implements BitConstants {
 					.createIteratorIterator(new Iterator<Iterator<Idx>>() {
 						Iterator<Integer> zItr = depth.indexIterator();
 
+						@Override
 						public boolean hasNext() {
 							return zItr.hasNext();
 						}
 
+						@Override
 						public Iterator<Idx> next() {
 							int z = zItr.next();
 							return WrappedIterator.create(
@@ -139,6 +146,7 @@ public class BitCube implements BitConstants {
 									new Mapper(z));
 						}
 
+						@Override
 						public void remove() {
 							throw new UnsupportedOperationException();
 
@@ -180,6 +188,7 @@ public class BitCube implements BitConstants {
 			return z;
 		}
 
+		@Override
 		public int compareTo(Idx that) {
 			if (this.x < that.x) {
 				return -1;
@@ -231,6 +240,7 @@ public class BitCube implements BitConstants {
 			this.z = z;
 		}
 
+		@Override
 		public Idx map1(BitMatrix.Idx o) {
 			return new Idx(o, z);
 		}

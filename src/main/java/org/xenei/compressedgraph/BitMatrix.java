@@ -30,39 +30,47 @@ import com.hp.hpl.jena.util.iterator.NiceIterator;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
 public class BitMatrix implements BitConstants {
-	
+	private final int pageSize;
 	private final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
 	private SparseArray<SparseBitArray> rows;
 
 	public BitMatrix() {
-		rows = new SparseArray<SparseBitArray>();
+		this(DEFAULT_PAGE_SIZE);
+	}
+
+	public BitMatrix(int pageSize) {
+		this.pageSize = pageSize;
+		rows = new SparseArray<SparseBitArray>(pageSize);
 	}
 
 	public void set(int x, int y) {
-		if (x<0 || y<0)
-		{
-			throw new IllegalArgumentException( String.format("Indexes (%s,%s) must be greater than or equals to 0", x, y ));
+		if (x < 0 || y < 0) {
+			throw new IllegalArgumentException(
+					String.format(
+							"Indexes (%s,%s) must be greater than or equals to 0",
+							x, y));
 		}
-		
+
 		WriteLock wl = LOCK_FACTORY.writeLock();
 		wl.lock();
 		try {
 			SparseBitArray bs = rows.get(y);
 			if (bs == null) {
-				bs = new SparseBitArray();
+				bs = new SparseBitArray(pageSize);
 			}
 			bs.set(x);
 			rows.put(y, bs);
-		}
-		finally {
+		} finally {
 			wl.unlock();
 		}
 	}
 
 	public void clear(int x, int y) {
-		if (x<0 || y<0)
-		{
-			throw new IllegalArgumentException( String.format("Indexes (%s,%s) must be greater than or equals to 0", x, y ));
+		if (x < 0 || y < 0) {
+			throw new IllegalArgumentException(
+					String.format(
+							"Indexes (%s,%s) must be greater than or equals to 0",
+							x, y));
 		}
 		WriteLock wl = LOCK_FACTORY.writeLock();
 		wl.lock();
@@ -75,24 +83,24 @@ public class BitMatrix implements BitConstants {
 				}
 			}
 			rows.put(y, bs);
-		}
-		finally {
+		} finally {
 			wl.unlock();
 		}
 	}
 
 	public boolean has(int x, int y) {
-		if (x<0 || y<0)
-		{
-			throw new IllegalArgumentException( String.format("Indexes (%s,%s) must be greater than or equals to 0", x, y ));
+		if (x < 0 || y < 0) {
+			throw new IllegalArgumentException(
+					String.format(
+							"Indexes (%s,%s) must be greater than or equals to 0",
+							x, y));
 		}
 		ReadLock rl = LOCK_FACTORY.readLock();
 		rl.lock();
 		try {
 			SparseBitArray bs = rows.get(y);
 			return bs == null ? false : bs.get(x);
-		}
-		finally {
+		} finally {
 			rl.unlock();
 		}
 	}
@@ -102,8 +110,7 @@ public class BitMatrix implements BitConstants {
 		rl.lock();
 		try {
 			return rows.isEmpty();
-		}
-		finally {
+		} finally {
 			rl.unlock();
 		}
 	}
@@ -119,56 +126,56 @@ public class BitMatrix implements BitConstants {
 				return WrappedIterator
 						.createIteratorIterator(new Iterator<Iterator<Idx>>() {
 							Iterator<Integer> yItr = rows.indexIterator();
-	
+
+							@Override
 							public boolean hasNext() {
 								return yItr.hasNext();
 							}
-	
+
+							@Override
 							public Iterator<Idx> next() {
 								int y = yItr.next();
 								SparseBitArray bs = rows.get(y);
 								if (bs == null) {
 									return NiceIterator.emptyIterator();
 								}
-								return getXIterator( x, y, bs );
+								return getXIterator(x, y, bs);
 							}
-	
+
+							@Override
 							public void remove() {
 								throw new UnsupportedOperationException();
-	
+
 							}
 						});
-			}
-			else  {
+			} else {
 				SparseBitArray bs = rows.get(y);
 				if (bs == null) {
 					return NiceIterator.emptyIterator();
 				}
-				return getXIterator( x, y, bs );
-			} 
+				return getXIterator(x, y, bs);
+			}
 		} finally {
 			rl.unlock();
 		}
 	}
-	
-	private ExtendedIterator<Idx> getXIterator( final int x, final int y, SparseBitArray bs ) {
-		if (y < 0)
-		{
-			throw new IllegalArgumentException( String.format("y (%s) may not be less than 0", y ));
+
+	private ExtendedIterator<Idx> getXIterator(final int x, final int y,
+			SparseBitArray bs) {
+		if (y < 0) {
+			throw new IllegalArgumentException(String.format(
+					"y (%s) may not be less than 0", y));
 		}
 		if (x < 0) // x is wild
 		{
 			return WrappedIterator.create(bs.iterator()).mapWith(new Mapper(y));
-		}
-		else
-		{
+		} else {
 			if (bs.get(x)) {
-				return WrappedIterator.create(SingletonIterator.create( new Idx( x, y )));
-			}
-			else
-			{
+				return WrappedIterator.create(SingletonIterator.create(new Idx(
+						x, y)));
+			} else {
 				return NiceIterator.emptyIterator();
-			}	
+			}
 		}
 	}
 
@@ -180,6 +187,7 @@ public class BitMatrix implements BitConstants {
 			this.y = y;
 		}
 
+		@Override
 		public Idx map1(Integer o) {
 			return new Idx(o, y);
 		}
@@ -203,6 +211,7 @@ public class BitMatrix implements BitConstants {
 			return y;
 		}
 
+		@Override
 		public int compareTo(Idx that) {
 			if (this.x < that.x) {
 				return -1;
@@ -234,11 +243,10 @@ public class BitMatrix implements BitConstants {
 			long l = x + y;
 			return (int) l & 0xFFFFFFFF;
 		}
-		
+
 		@Override
-		public String toString()
-		{
-			return String.format( "BitMatrix.Idx[%s,%s]", x, y );
+		public String toString() {
+			return String.format("BitMatrix.Idx[%s,%s]", x, y);
 		}
 	}
 }

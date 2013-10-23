@@ -27,24 +27,33 @@ import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.hp.hpl.jena.util.iterator.Map1;
 
 public class CompressedGraph extends GraphBase {
-	
-	
-	private BitCube data = new BitCube();
-	private NodeMap map = new NodeMap();
-	
+	private BitCube data;
+	private NodeMap map;
+
+	public CompressedGraph() {
+		this(BitConstants.DEFAULT_PAGE_SIZE);
+	}
+
+	public CompressedGraph(int pageSize) {
+		data = new BitCube(pageSize);
+		map = new NodeMap();
+	}
+
 	@Override
 	protected ExtendedIterator<Triple> graphBaseFind(TripleMatch t) {
 		int s = map.get(t.getMatchSubject());
 		int p = map.get(t.getMatchPredicate());
 		int o = map.get(t.getMatchObject());
-		return data.find( s, p, o ).mapWith(new Map1<Idx,Triple>(){
+		return data.find(s, p, o).mapWith(new Map1<Idx, Triple>() {
 
+			@Override
 			public Triple map1(Idx idx) {
 				Node s = map.get(idx.getX());
 				Node p = map.get(idx.getY());
 				Node o = map.get(idx.getZ());
-				return new Triple( s, p, o );
-			}});
+				return new Triple(s, p, o);
+			}
+		});
 	}
 
 	@Override
@@ -52,7 +61,7 @@ public class CompressedGraph extends GraphBase {
 		int s = map.get(t.getSubject());
 		int p = map.get(t.getPredicate());
 		int o = map.get(t.getObject());
-		data.set( s, p, o );
+		data.set(s, p, o);
 	}
 
 	@Override
@@ -67,7 +76,5 @@ public class CompressedGraph extends GraphBase {
 		int o = map.get(t.getObject());
 		data.clear(s, p, o);
 	}
-	
-	
 
 }
