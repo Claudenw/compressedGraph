@@ -17,44 +17,66 @@
  */
 package org.xenei.compressedgraph;
 
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import org.xenei.compressedgraph.covert.CompressedNode;
 
 import com.hp.hpl.jena.graph.Node;
 
-public class NodeMap {
-	private Map<Node, Integer> map;
-	private List<Node> lst;
+public class NodeMap implements Serializable {
+	private List<CompressedNode> lst;
+	private Map<CompressedNode, CompressedNode> map;
 
 	public NodeMap() {
-		map = new HashMap<Node, Integer>();
-		lst = new ArrayList<Node>();
+		lst = new ArrayList<CompressedNode>();
+		map = new HashMap<CompressedNode, CompressedNode>();
 	}
 
-	public synchronized int get(Node n) {
-		if (n == null || n == Node.ANY)
-			return BitConstants.WILD;
-
-		Integer i = map.get(n);
-		if (i == null) {
-			return add(n);
+	public synchronized CompressedNode get(Node n) throws IOException {
+		if (n == null || n == Node.ANY) {
+			return CompressedNode.ANY;
 		}
-		return i;
+
+		CompressedNode wild = new CompressedNode(n, BitConstants.WILD);
+		CompressedNode cn = map.get(wild);
+
+		if (cn == null) {
+			cn = add(wild);
+		}
+		return cn;
 	}
 
-	public Node get(int idx) {
+	public CompressedNode get(int idx) {
 		return lst.get(idx);
 	}
 
-	private synchronized int add(Node n) {
+	private synchronized CompressedNode add(CompressedNode n) {
 		int i = lst.size();
+		n.setIdx(i);
 		lst.add(n);
-		map.put(n, i);
+		map.put(n, n);
 		if (map.size() != lst.size()) {
 			throw new IllegalStateException("lists out of order");
 		}
-		return i;
+		return n;
+	}
+
+	private void writeObject(java.io.ObjectOutputStream out) throws IOException {
+		out.writeObject(lst);
+	}
+
+	private void readObject(java.io.ObjectInputStream in) throws IOException,
+			ClassNotFoundException {
+		lst = (List<CompressedNode>) in.readObject();
+		for (CompressedNode n : lst) {
+			map.put(n, n);
+		}
 	}
 }

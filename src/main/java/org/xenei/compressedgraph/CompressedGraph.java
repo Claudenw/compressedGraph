@@ -17,6 +17,8 @@
  */
 package org.xenei.compressedgraph;
 
+import java.io.IOException;
+
 import org.xenei.compressedgraph.BitCube.Idx;
 
 import com.hp.hpl.jena.graph.Node;
@@ -41,27 +43,45 @@ public class CompressedGraph extends GraphBase {
 
 	@Override
 	protected ExtendedIterator<Triple> graphBaseFind(TripleMatch t) {
-		int s = map.get(t.getMatchSubject());
-		int p = map.get(t.getMatchPredicate());
-		int o = map.get(t.getMatchObject());
+		try {
+		int s = map.get(t.getMatchSubject()).getIdx();
+		int p = map.get(t.getMatchPredicate()).getIdx();
+		int o = map.get(t.getMatchObject()).getIdx();
 		return data.find(s, p, o).mapWith(new Map1<Idx, Triple>() {
 
 			@Override
 			public Triple map1(Idx idx) {
-				Node s = map.get(idx.getX());
-				Node p = map.get(idx.getY());
-				Node o = map.get(idx.getZ());
+				try {
+				Node s = map.get(idx.getX()).getNode();
+				Node p = map.get(idx.getY()).getNode();
+				Node o = map.get(idx.getZ()).getNode();
 				return new Triple(s, p, o);
+				}
+				catch (IOException e)
+				{
+					throw new RuntimeException( e );
+				}
 			}
 		});
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException( e );
+		}
 	}
 
 	@Override
 	public void performAdd(Triple t) {
-		int s = map.get(t.getSubject());
-		int p = map.get(t.getPredicate());
-		int o = map.get(t.getObject());
+		try {
+		int s = map.get(t.getSubject()).getIdx();
+		int p = map.get(t.getPredicate()).getIdx();
+		int o = map.get(t.getObject()).getIdx();
 		data.set(s, p, o);
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException( e );
+		}
 	}
 
 	@Override
@@ -71,10 +91,16 @@ public class CompressedGraph extends GraphBase {
 
 	@Override
 	public void performDelete(Triple t) {
-		int s = map.get(t.getSubject());
-		int p = map.get(t.getPredicate());
-		int o = map.get(t.getObject());
+		try {
+		int s = map.get(t.getSubject()).getIdx();
+		int p = map.get(t.getPredicate()).getIdx();
+		int o = map.get(t.getObject()).getIdx();
 		data.clear(s, p, o);
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException( e );
+		}
 	}
 
 }

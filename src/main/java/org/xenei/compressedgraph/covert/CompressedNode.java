@@ -1,22 +1,30 @@
 package org.xenei.compressedgraph.covert;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
+import java.lang.ref.SoftReference;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterInputStream;
 import java.util.zip.DeflaterOutputStream;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.xenei.compressedgraph.BitConstants;
 
 import com.hp.hpl.jena.datatypes.RDFDatatype;
@@ -44,11 +52,6 @@ public class CompressedNode implements Serializable//, InvocationHandler
 	private static final int MAX_STR_SIZE = 20;
 	private static final TypeMapper TYPE_MAPPER = new TypeMapper();
 	
-	private static final Method EQUALS;
-	private static final Method HASH_CODE;
-	private static final Method TO_STRING;
-	private static final Method GET_IDX;
-	
 	public static final CompressedNode ANY;
 	
 	static {
@@ -59,36 +62,19 @@ public class CompressedNode implements Serializable//, InvocationHandler
 		{
 			throw new IllegalArgumentException( e );
 		}
-		try {
-			EQUALS = Object.class.getMethod("equals", Object.class);
-			HASH_CODE = Object.class.getMethod("hashCode" );
-			TO_STRING = Object.class.getMethod("toString" );
-			GET_IDX = CompressedNode.class.getMethod("getIdx");
-		}
-		catch (NoSuchMethodException e)
-		{
-			throw new IllegalArgumentException( e );
-		}
-
 	}
 	
-	private transient Node node;
+	private transient SoftReference<Node> node;
 	private char type;
 	private byte[] value;
 	private int hashCode;
 	private int idx;
-	
-//	public static CompressedNode newInstance( Node n, int idx ) throws IllegalArgumentException, IOException {
-//		return (CompressedNode) Proxy.newProxyInstance(CompressedNode.class.getClassLoader(),
-//                new Class<?>[] {Node.class, CompressedNode.class},
-//                new CompressedNode(n, idx));
-//	}
-	
-	private  CompressedNode( Node n, int idx ) throws IOException
+		
+	public  CompressedNode( Node n, int idx ) throws IOException
 	{
 		this.idx = idx;
 		this.hashCode = n.hashCode();
-		this.node = n;
+		this.node = new SoftReference<Node>( n );
 		
 		if (n.equals( Node.ANY ))
 		{
@@ -107,19 +93,19 @@ public class CompressedNode implements Serializable//, InvocationHandler
 		} else if (n.isLiteral()) {
 			type=_LIT;
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			
-			ObjectOutputStream oos = new ObjectOutputStream( baos );
-			oos.writeUTF(n.getLiteralLexicalForm());
-			oos.writeUTF(n.getLiteralLanguage() );
-			oos.writeUTF(n.getLiteralDatatypeURI() );
-			oos.close();
+			DataOutputStream os = new DataOutputStream( baos );
+			write(os, n.getLiteralLexicalForm());
+			write(os, n.getLiteralLanguage());
+			write(os, n.getLiteralDatatypeURI());
+			os.close();
+			baos.close();
 			value = baos.toByteArray();
 			
 			if (value.length > MAX_STR_SIZE )
 			{
 				type = _LITC;
 				baos = new ByteArrayOutputStream();
-				DeflaterOutputStream dos = new DeflaterOutputStream( baos );
+				GZIPOutputStream dos = new GZIPOutputStream( baos );
 				dos.write( value );
 				dos.close();
 				value = baos.toByteArray();
@@ -127,6 +113,37 @@ public class CompressedNode implements Serializable//, InvocationHandler
 		} else {
 			throw new IllegalArgumentException( "Unknown node type "+n);
 		}	
+	}
+	
+	private void write(DataOutputStream os, String s ) throws IOException
+	{
+		if (s == null )
+		{
+			os.writeInt( 0 );
+		}
+		else
+		{
+			byte[] b = encodeString( s);
+			os.writeInt( b.length );
+			if (b.length > 0)
+			{
+				os.write( b );
+			}
+		}
+	}
+	
+	public void setIdx( int idx )
+	{
+		if (this.idx != BitConstants.WILD)
+		{
+			throw new IllegalStateException( "CompressedNode id must be WILD to be set" );
+		}
+		this.idx = idx;
+	}
+	
+	public int getSize()
+	{
+		return value.length;
 	}
 	
 	public int getIdx()
@@ -159,13 +176,13 @@ public class CompressedNode implements Serializable//, InvocationHandler
 		return false;
 	}
 	
-	private Node getNode() throws IOException
+	public Node getNode() throws IOException
 	{
-		if (node == null)
+		if (node == null || node.get() == null)
 		{
-			node = extractNode();
+			extractNode();
 		}
-		return node;
+		return node.get();
 	}
 	
 	private String decodeString( byte[] b )
@@ -179,58 +196,56 @@ public class CompressedNode implements Serializable//, InvocationHandler
 		} 
 	}
 	
-	private Node extractNode() throws IOException
+	private String read(DataInputStream is) throws IOException
+	{
+		int n = is.readInt();
+		if (n == 0)
+		{
+			return null;
+		}
+		byte[] b = new byte[n];
+		is.read(b);
+		return decodeString( b );
+	}
+	
+	private void extractNode() throws IOException
 	{
 		if (type == _ANON )
 		{
-			node = NodeFactory.createAnon( AnonId.create( decodeString( value )));
+			node = new SoftReference<Node>( NodeFactory.createAnon( AnonId.create( decodeString( value ))));
 		}
-		if (type == _LIT)
+		if (type == _LIT || type == _LITC)
 		{
-			ByteArrayInputStream bais = new ByteArrayInputStream( value );
-
-			ObjectInputStream ois = new ObjectInputStream( bais );
-			String lex = ois.readUTF();
-			String lang = ois.readUTF();
-			String dtURI = ois.readUTF();
-			ois.close();
-			RDFDatatype dtype = TYPE_MAPPER.getSafeTypeByName(dtURI);
-			node = NodeFactory.createLiteral(lex, lang, dtype);
-		}
-		if (type == _LITC)
-		{
-			ByteArrayInputStream bais = new ByteArrayInputStream( value );
-			DeflaterInputStream dis = new DeflaterInputStream( bais );
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			IOUtils.copy( dis, baos );
-			dis.close();
-			baos.close();
-			bais = new ByteArrayInputStream( value );
-			ObjectInputStream ois = new ObjectInputStream( bais );
-			String lex = ois.readUTF();
-			String lang = ois.readUTF();
-			String dtURI = ois.readUTF();
-			ois.close();
-			RDFDatatype dtype = TYPE_MAPPER.getSafeTypeByName(dtURI);
-			node = NodeFactory.createLiteral(lex, lang, dtype);
+			
+			InputStream bais = new ByteArrayInputStream( value );
+			if (type == _LITC)
+			{
+				bais = new GZIPInputStream( bais );	
+			}
+			DataInputStream is = new DataInputStream( new BufferedInputStream( bais ) );
+			String lex = read(is);
+			String lang = read(is);;
+			String dtURI = read(is);
+			is.close();
+			RDFDatatype dtype = StringUtils.isEmpty(dtURI)?null:TYPE_MAPPER.getSafeTypeByName(dtURI);
+			node = new SoftReference<Node>( NodeFactory.createUncachedLiteral(lex, lang, dtype));
 		}
 		if (type == _URI)
 		{
-			node = NodeFactory.createURI( decodeString( value ));
+			node = new SoftReference<Node>( NodeFactory.createURI( decodeString( value )));
 		}
 		if (type == _VAR)
 		{
-			node = NodeFactory.createVariable(decodeString( value ));
+			node = new SoftReference<Node>( NodeFactory.createVariable(decodeString( value )));
 		}
 		if (type == _ANY)
 		{
-			node = Node.ANY;
+			node = new SoftReference<Node>( Node.ANY );
 		}
 		if (node == null)
 		{
 			throw new RuntimeException( "Unable to parse node");
 		}
-		return node;
 	}
 	
 	private byte[] encodeString( String s )
@@ -243,43 +258,4 @@ public class CompressedNode implements Serializable//, InvocationHandler
 			throw new RuntimeException( e );
 		}
 	}
-	
-//	@Override
-//	public Object invoke( final Object proxy, final Method method,
-//			final Object[] args ) throws Throwable
-//	{
-//
-//		// check for the special case methods
-//		if (EQUALS.equals(method))
-//		{
-//			if (Proxy.isProxyClass(args[0].getClass()))
-//			{
-//				return args[0].equals(getNode());
-//			}
-//			else
-//			{
-//				return getNode().equals(args[0]);
-//			}
-//		}
-//
-//		if (HASH_CODE.equals(method))
-//		{
-//			return hashCode();
-//		}
-//
-//		if (TO_STRING.equals(method))
-//		{
-//			return this.toString();
-//		}
-//		
-//		if (GET_IDX.equals(method))
-//		{
-//			return this.getIdx();
-//		}
-//
-//		// if we get here then the method is not being proxied so call the
-//		// original method on the base item.
-//		return method.invoke(getNode(), args);
-//
-//	}
 }
