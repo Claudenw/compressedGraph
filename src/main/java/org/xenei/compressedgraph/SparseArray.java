@@ -17,6 +17,8 @@
  */
 package org.xenei.compressedgraph;
 
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -29,10 +31,10 @@ import com.hp.hpl.jena.util.iterator.Filter;
 import com.hp.hpl.jena.util.iterator.Map1;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
-public class SparseArray<T> {
+public class SparseArray<T> implements Serializable {
 	private Page first;
 	private Page last;
-	private final int pageSize;
+	private int pageSize;
 	private final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
 
 	public SparseArray() {
@@ -110,6 +112,45 @@ public class SparseArray<T> {
 						return o.indexIterator();
 					}
 				}));
+	}
+
+	private int getPageCount() {
+		int i = 0;
+		Page p = first;
+		while (p != null) {
+			i++;
+			p = p.next;
+		}
+		return i;
+	}
+
+	private void writeObject(java.io.ObjectOutputStream out) throws IOException {
+		out.write(pageSize);
+		Page p = first;
+		out.writeInt(getPageCount());
+
+		while (p != null) {
+			out.writeObject(p);
+			p = p.next;
+		}
+	}
+
+	private void readObject(java.io.ObjectInputStream in) throws IOException,
+			ClassNotFoundException {
+		pageSize = in.readInt();
+		int pageCount = in.readInt();
+		for (int i = 0; i < pageCount; i++) {
+
+			Page p = (Page) in.readObject();
+			if (first == null) {
+				first = p;
+				last = p;
+			} else {
+				last.next = p;
+				p.prev = last;
+				last = p;
+			}
+		}
 	}
 
 	/**
@@ -207,12 +248,12 @@ public class SparseArray<T> {
 		});
 	}
 
-	private class Page {
+	public class Page implements Serializable {
 		private int offset;
 		private Object[] data;
-		private Page next;
-		private Page prev;
-		private final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
+		private transient Page next;
+		private transient Page prev;
+		private transient final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
 
 		private Page(int offset, Page prev, Page next) {
 			this.offset = offset;

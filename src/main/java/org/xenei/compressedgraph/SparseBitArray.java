@@ -17,6 +17,8 @@
  */
 package org.xenei.compressedgraph;
 
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.BitSet;
 import java.util.Iterator;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -27,10 +29,10 @@ import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.hp.hpl.jena.util.iterator.Map1;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
-public class SparseBitArray implements BitConstants {
+public class SparseBitArray implements BitConstants, Serializable {
 	private Page first;
 	private Page last;
-	private final int PAGE_SIZE;
+	private int pageSize;
 	private final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
 
 	public SparseBitArray() {
@@ -38,7 +40,7 @@ public class SparseBitArray implements BitConstants {
 	}
 
 	public SparseBitArray(int pageSize) {
-		PAGE_SIZE = pageSize;
+		this.pageSize = pageSize;
 		first = null;
 		last = null;
 	}
@@ -109,7 +111,7 @@ public class SparseBitArray implements BitConstants {
 		ReadLock rl = LOCK_FACTORY.readLock();
 		rl.lock();
 		try {
-			int offset = idx / PAGE_SIZE;
+			int offset = idx / this.pageSize;
 			if (first == null) {
 				return null;
 			}
@@ -140,7 +142,7 @@ public class SparseBitArray implements BitConstants {
 		WriteLock wl = LOCK_FACTORY.writeLock();
 		wl.lock();
 		try {
-			int offset = idx / PAGE_SIZE;
+			int offset = idx / this.pageSize;
 			if (prev == null) {
 				// inserting at first
 				first = new Page(offset, null, first);
@@ -204,18 +206,57 @@ public class SparseBitArray implements BitConstants {
 		});
 	}
 
-	private class Page {
+	private int getPageCount() {
+		int i = 0;
+		Page p = first;
+		while (p != null) {
+			i++;
+			p = p.next;
+		}
+		return i;
+	}
+
+	private void writeObject(java.io.ObjectOutputStream out) throws IOException {
+		out.write(pageSize);
+		Page p = first;
+		out.writeInt(getPageCount());
+
+		while (p != null) {
+			out.writeObject(p);
+			p = p.next;
+		}
+	}
+
+	private void readObject(java.io.ObjectInputStream in) throws IOException,
+			ClassNotFoundException {
+		pageSize = in.readInt();
+		int pageCount = in.readInt();
+		for (int i = 0; i < pageCount; i++) {
+
+			Page p = (Page) in.readObject();
+			if (first == null) {
+				first = p;
+				last = p;
+			} else {
+				last.next = p;
+				p.prev = last;
+				last = p;
+			}
+		}
+	}
+
+	private class Page implements Serializable {
 		private int offset;
 		private BitSet data;
-		private Page next;
-		private Page prev;
-		private final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
+		private transient Page next;
+		private transient Page prev;
+		private transient final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
 
 		private Page(int offset, Page prev, Page next) {
 			this.offset = offset;
 			this.prev = prev;
 			this.next = next;
-			data = new BitSet(PAGE_SIZE);
+			data = new BitSet(pageSize);
 			if (prev != null) {
 				prev.next = this;
 			}
@@ -225,7 +266,7 @@ public class SparseBitArray implements BitConstants {
 		}
 
 		public boolean contains(int idx) {
-			return offset == idx / PAGE_SIZE;
+			return offset == idx / pageSize;
 		}
 
 		public boolean isEmpty() {
@@ -242,7 +283,7 @@ public class SparseBitArray implements BitConstants {
 			WriteLock wl = LOCK_FACTORY.writeLock();
 			wl.lock();
 			try {
-				int pageIdx = idx % PAGE_SIZE;
+				int pageIdx = idx % pageSize;
 				boolean retval = data.get(pageIdx);
 				if (value) {
 					data.set(pageIdx);
@@ -259,7 +300,7 @@ public class SparseBitArray implements BitConstants {
 			ReadLock rl = LOCK_FACTORY.readLock();
 			rl.lock();
 			try {
-				int pageIdx = idx % PAGE_SIZE;
+				int pageIdx = idx % pageSize;
 				return data.get(pageIdx);
 			} finally {
 				rl.unlock();
@@ -277,7 +318,7 @@ public class SparseBitArray implements BitConstants {
 
 			@Override
 			public Integer next() {
-				return getNext() + (offset * PAGE_SIZE);
+				return getNext() + (offset * pageSize);
 			}
 		}
 	}

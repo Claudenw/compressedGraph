@@ -41,7 +41,7 @@ import com.hp.hpl.jena.graph.impl.LiteralLabel;
 import com.hp.hpl.jena.graph.impl.LiteralLabelFactory;
 import com.hp.hpl.jena.rdf.model.AnonId;
 
-public class CompressedNode implements Serializable//, InvocationHandler 
+public class CompressedNode implements Serializable
 {
 	private static final char _ANON='A';
 	private static final char _LIT='L';

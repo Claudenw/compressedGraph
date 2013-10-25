@@ -24,9 +24,9 @@ import org.xenei.compressedgraph.covert.CompressedNode;
 import com.hp.hpl.jena.graph.Node;
 
 public interface INodeMap {
-	
+
 	public CompressedNode get(Node n) throws IOException;
-	
+
 	public CompressedNode get(int idx) throws IOException;
 
 }

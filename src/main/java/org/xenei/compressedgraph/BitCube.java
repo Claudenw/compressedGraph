@@ -17,6 +17,8 @@
  */
 package org.xenei.compressedgraph;
 
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
@@ -27,7 +29,7 @@ import com.hp.hpl.jena.util.iterator.Map1;
 import com.hp.hpl.jena.util.iterator.NiceIterator;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
-public class BitCube implements BitConstants {
+public class BitCube implements BitConstants, Serializable {
 
 	private SparseArray<BitMatrix> depth;
 	private final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
@@ -161,6 +163,20 @@ public class BitCube implements BitConstants {
 		}
 	}
 
+	// private void writeObject(java.io.ObjectOutputStream out)
+	// throws IOException {
+	// out.writeInt( pageSize );
+	// out.writeInt( size );
+	// out.writeObject( depth );
+	// }
+	// private void readObject(java.io.ObjectInputStream in)
+	// throws IOException, ClassNotFoundException
+	// {
+	// pageSize = in.readInt();
+	// size = in.readInt();
+	//
+	// }
+	//
 	public static class Idx implements Comparable<Idx> {
 		private int x;
 		private int y;

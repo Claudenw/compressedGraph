@@ -18,6 +18,9 @@
 package org.xenei.compressedgraph;
 
 import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
 
 import org.xenei.compressedgraph.BitCube.Idx;
 
@@ -28,7 +31,7 @@ import com.hp.hpl.jena.graph.impl.GraphBase;
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.hp.hpl.jena.util.iterator.Map1;
 
-public class CompressedGraph extends GraphBase {
+public class CompressedGraph extends GraphBase implements Serializable {
 	private BitCube data;
 	private NodeMap map;
 
@@ -44,43 +47,37 @@ public class CompressedGraph extends GraphBase {
 	@Override
 	protected ExtendedIterator<Triple> graphBaseFind(TripleMatch t) {
 		try {
-		int s = map.get(t.getMatchSubject()).getIdx();
-		int p = map.get(t.getMatchPredicate()).getIdx();
-		int o = map.get(t.getMatchObject()).getIdx();
-		return data.find(s, p, o).mapWith(new Map1<Idx, Triple>() {
+			int s = map.get(t.getMatchSubject()).getIdx();
+			int p = map.get(t.getMatchPredicate()).getIdx();
+			int o = map.get(t.getMatchObject()).getIdx();
+			return data.find(s, p, o).mapWith(new Map1<Idx, Triple>() {
 
-			@Override
-			public Triple map1(Idx idx) {
-				try {
-				Node s = map.get(idx.getX()).getNode();
-				Node p = map.get(idx.getY()).getNode();
-				Node o = map.get(idx.getZ()).getNode();
-				return new Triple(s, p, o);
+				@Override
+				public Triple map1(Idx idx) {
+					try {
+						Node s = map.get(idx.getX()).getNode();
+						Node p = map.get(idx.getY()).getNode();
+						Node o = map.get(idx.getZ()).getNode();
+						return new Triple(s, p, o);
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
 				}
-				catch (IOException e)
-				{
-					throw new RuntimeException( e );
-				}
-			}
-		});
-		}
-		catch (IOException e)
-		{
-			throw new RuntimeException( e );
+			});
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		}
 	}
 
 	@Override
 	public void performAdd(Triple t) {
 		try {
-		int s = map.get(t.getSubject()).getIdx();
-		int p = map.get(t.getPredicate()).getIdx();
-		int o = map.get(t.getObject()).getIdx();
-		data.set(s, p, o);
-		}
-		catch (IOException e)
-		{
-			throw new RuntimeException( e );
+			int s = map.get(t.getSubject()).getIdx();
+			int p = map.get(t.getPredicate()).getIdx();
+			int o = map.get(t.getObject()).getIdx();
+			data.set(s, p, o);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -92,15 +89,25 @@ public class CompressedGraph extends GraphBase {
 	@Override
 	public void performDelete(Triple t) {
 		try {
-		int s = map.get(t.getSubject()).getIdx();
-		int p = map.get(t.getPredicate()).getIdx();
-		int o = map.get(t.getObject()).getIdx();
-		data.clear(s, p, o);
+			int s = map.get(t.getSubject()).getIdx();
+			int p = map.get(t.getPredicate()).getIdx();
+			int o = map.get(t.getObject()).getIdx();
+			data.clear(s, p, o);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		}
-		catch (IOException e)
-		{
-			throw new RuntimeException( e );
-		}
+	}
+
+	private void writeObject(java.io.ObjectOutputStream out) throws IOException {
+		out.writeObject(map);
+		out.writeObject(data);
+	}
+
+	private void readObject(java.io.ObjectInputStream in) throws IOException,
+			ClassNotFoundException {
+		map = (NodeMap) in.readObject();
+		data = (BitCube) in.readObject();
+
 	}
 
 }
