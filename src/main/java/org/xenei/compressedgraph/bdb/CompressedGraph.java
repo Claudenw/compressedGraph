@@ -15,14 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.xenei.compressedgraph;
+package org.xenei.compressedgraph.bdb;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 
-import org.xenei.compressedgraph.BitCube.Idx;
+import org.xenei.compressedgraph.core.BitConstants;
+import org.xenei.compressedgraph.core.BitCube;
+import org.xenei.compressedgraph.core.BitCube.Idx;
 
 import com.hp.hpl.jena.graph.Node;
 import com.hp.hpl.jena.graph.Triple;
@@ -30,6 +32,7 @@ import com.hp.hpl.jena.graph.TripleMatch;
 import com.hp.hpl.jena.graph.impl.GraphBase;
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.hp.hpl.jena.util.iterator.Map1;
+import com.sleepycat.je.DatabaseException;
 
 public class CompressedGraph extends GraphBase implements Serializable {
 	private BitCube data;
@@ -41,7 +44,15 @@ public class CompressedGraph extends GraphBase implements Serializable {
 
 	public CompressedGraph(int pageSize) {
 		data = new BitCube(pageSize);
-		map = new NodeMap();
+		try {
+			map = new NodeMap();
+		} catch (DatabaseException e) {
+			throw new RuntimeException(e);
+		} catch (IllegalArgumentException e) {
+			throw new RuntimeException(e);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@Override

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.xenei.compressedgraph;
+package org.xenei.compressedgraph.core;
 
 import static org.junit.Assert.*;
 
@@ -23,8 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.junit.Test;
-import org.xenei.compressedgraph.BitMatrix;
-import org.xenei.compressedgraph.BitMatrix.Idx;
+import org.xenei.compressedgraph.core.BitMatrix;
+import org.xenei.compressedgraph.core.BitMatrix.Idx;
 
 public class BitMatrixTest {
 	

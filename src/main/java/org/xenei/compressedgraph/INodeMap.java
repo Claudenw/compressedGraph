@@ -18,15 +18,39 @@
 package org.xenei.compressedgraph;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.nio.ByteBuffer;
 
 import org.xenei.compressedgraph.covert.CompressedNode;
 
 import com.hp.hpl.jena.graph.Node;
+import com.sleepycat.je.Cursor;
+import com.sleepycat.je.DatabaseEntry;
+import com.sleepycat.je.DatabaseException;
+import com.sleepycat.je.LockMode;
+import com.sleepycat.je.OperationStatus;
 
-public interface INodeMap {
+public interface INodeMap extends Serializable {
 
 	public CompressedNode get(Node n) throws IOException;
 
 	public CompressedNode get(int idx) throws IOException;
+	
+	public void close();
+	
+	public int count();
+	
+	public void add( CompressedNode cn );
+	
+//	public static class Util {
+//		public static byte[] toStore( CompressedNode cn )
+//		{
+//			return ByteBuffer.allocateDirect(4+2+cn.getSize())
+//				.putInt( cn.getIdx() )
+//				.putChar( cn.getType() )
+//				.put(cn.getData())
+//				.array();
+//		}
+//	}
 
 }

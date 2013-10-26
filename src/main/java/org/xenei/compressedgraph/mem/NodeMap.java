@@ -15,17 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.xenei.compressedgraph;
+package org.xenei.compressedgraph.mem;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.xenei.compressedgraph.core.BitConstants;
 import org.xenei.compressedgraph.covert.CompressedNode;
 
 import com.hp.hpl.jena.graph.Node;
@@ -69,14 +71,26 @@ public class NodeMap implements Serializable {
 	}
 
 	private void writeObject(java.io.ObjectOutputStream out) throws IOException {
-		out.writeObject(lst);
+		out.writeInt( lst.size() );
+		for (int i=0;i<lst.size();i++)
+		{
+			out.writeObject( lst.get(i) );
+		}
 	}
 
 	private void readObject(java.io.ObjectInputStream in) throws IOException,
 			ClassNotFoundException {
-		lst = (List<CompressedNode>) in.readObject();
-		for (CompressedNode n : lst) {
-			map.put(n, n);
+		int count = in.readInt();
+		for (int i=0;i<count;i++)
+		{
+			CompressedNode cn = (CompressedNode) in.readObject();
+			if (lst.size() <= cn.getIdx())
+			{
+				int fill = cn.getIdx()-lst.size()+1;
+				lst.addAll( Arrays.asList(new CompressedNode[fill]) );
+			}
+			lst.set( cn.getIdx(), cn  );
+			map.put( cn,  cn );
 		}
 	}
 }

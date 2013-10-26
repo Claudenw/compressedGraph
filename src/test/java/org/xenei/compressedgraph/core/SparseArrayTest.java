@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.xenei.compressedgraph;
+package org.xenei.compressedgraph.core;
 
 import static org.junit.Assert.*;
 
@@ -24,7 +24,7 @@ import java.util.NoSuchElementException;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.xenei.compressedgraph.SparseArray;
+import org.xenei.compressedgraph.core.SparseArray;
 
 public class SparseArrayTest {
 	

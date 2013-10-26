@@ -15,9 +15,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.xenei.compressedgraph;
+package org.xenei.compressedgraph.core;
 
-public interface BitConstants {
-	public static final int WILD = -1;
-	public static final int DEFAULT_PAGE_SIZE = 4096;
+import java.util.BitSet;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+
+public class BitSetIterator implements Iterator<Integer> {
+	private BitSet bs;
+	private int next;
+
+	/*
+	 * for (int i = bs.nextSetBit(0); i >= 0; i = bs.nextSetBit(i+1)) { //
+	 * operate on index i here }
+	 */
+	public BitSetIterator(BitSet bs) {
+		this.bs = bs;
+		next = bs.nextSetBit(0);
+	}
+
+	@Override
+	public boolean hasNext() {
+		return next != -1;
+	}
+
+	protected int getNext() {
+		if (!hasNext()) {
+			throw new NoSuchElementException();
+		}
+		int retval = next;
+		next = bs.nextSetBit(next + 1);
+		return retval;
+	}
+
+	@Override
+	public Integer next() {
+		return getNext();
+	}
+
+	@Override
+	public void remove() {
+		throw new UnsupportedOperationException();
+	}
+
 }

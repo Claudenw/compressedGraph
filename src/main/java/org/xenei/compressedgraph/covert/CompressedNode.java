@@ -7,51 +7,38 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.lang.ref.SoftReference;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.zip.Deflater;
-import java.util.zip.DeflaterInputStream;
-import java.util.zip.DeflaterOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.xenei.compressedgraph.BitConstants;
+import org.xenei.compressedgraph.core.BitConstants;
 
 import com.hp.hpl.jena.datatypes.RDFDatatype;
 import com.hp.hpl.jena.datatypes.TypeMapper;
 import com.hp.hpl.jena.graph.Node;
 import com.hp.hpl.jena.graph.NodeFactory;
-import com.hp.hpl.jena.graph.NodeVisitor;
-import com.hp.hpl.jena.graph.Node_ANY;
-import com.hp.hpl.jena.graph.Node_Blank;
-import com.hp.hpl.jena.graph.Node_Literal;
-import com.hp.hpl.jena.graph.Node_URI;
-import com.hp.hpl.jena.graph.Node_Variable;
 import com.hp.hpl.jena.graph.impl.LiteralLabel;
 import com.hp.hpl.jena.graph.impl.LiteralLabelFactory;
 import com.hp.hpl.jena.rdf.model.AnonId;
 
 public class CompressedNode implements Serializable
 {
-	private static final char _ANON='A';
-	private static final char _LIT='L';
-	private static final char _LITC='l'; // compressed literal
-	private static final char _URI='U';
-	private static final char _VAR='V';
-	private static final char _ANY = 'a';
+	private static final byte _ANON=0x01;
+	private static final byte _LIT=0x02;
+	private static final byte _LITC=0x03; // compressed literal
+	private static final byte _URI=0x04;
+	private static final byte _VAR=0x05;
+	private static final byte _ANY = 0x06;
 	private static final int MAX_STR_SIZE = 20;
-	private static final TypeMapper TYPE_MAPPER = new TypeMapper();
 	
+	private static final int IDX_OFFSET = 0;
+	private static final int HASH_CODE_OFFSET = 4;
+	private static final int TYPE_OFFSET = 8;
+	private static final int DATA_OFFSET = 9;
 	public static final CompressedNode ANY;
 	
 	static {
@@ -65,61 +52,80 @@ public class CompressedNode implements Serializable
 	}
 	
 	private transient SoftReference<Node> node;
-	private char type;
+	private transient ByteBuffer buffer;
 	private byte[] value;
-	private int hashCode;
-	private int idx;
 		
+	public CompressedNode( byte[] compressedValue )
+	{
+		this.node = null;
+		this.value = compressedValue;
+	}
+	
 	public  CompressedNode( Node n, int idx ) throws IOException
 	{
-		this.idx = idx;
-		this.hashCode = n.hashCode();
 		this.node = new SoftReference<Node>( n );
 		
 		if (n.equals( Node.ANY ))
 		{
-			type = _ANY;
-			value = null;
+			fillBuffer(idx,n.hashCode(),_ANY, null );
 		}
 		else if (n.isVariable() ) {
-			type=_VAR;
-			value = encodeString( n.getName() );
+			fillBuffer(idx,n.hashCode(),_VAR, encodeString( n.getName() ));
 		} else if (n.isURI()) {
-			type=_URI;
-			value = encodeString( n.getURI() );
+			fillBuffer(idx,n.hashCode(),_URI, encodeString( n.getURI() ));		
 		} else if (n.isBlank()) {
-			type=_ANON;
-			value = encodeString( n.getBlankNodeId().getLabelString());	
+			fillBuffer(idx,n.hashCode(),_ANON, encodeString( n.getBlankNodeId().getLabelString()));
 		} else if (n.isLiteral()) {
-			type=_LIT;
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			DataOutputStream os = new DataOutputStream( baos );
 			write(os, n.getLiteralLexicalForm());
 			write(os, n.getLiteralLanguage());
 			write(os, n.getLiteralDatatypeURI());
+			
 			os.close();
 			baos.close();
-			value = baos.toByteArray();
+			byte[] value = baos.toByteArray();
 			
 			if (value.length > MAX_STR_SIZE )
 			{
-				type = _LITC;
 				baos = new ByteArrayOutputStream();
 				GZIPOutputStream dos = new GZIPOutputStream( baos );
 				dos.write( value );
 				dos.close();
-				value = baos.toByteArray();
+				fillBuffer(idx,n.hashCode(), _LITC,  baos.toByteArray());
+			} else {
+				fillBuffer(idx,n.hashCode(), _LIT,  value);
 			}
 		} else {
 			throw new IllegalArgumentException( "Unknown node type "+n);
 		}	
 	}
 	
+	private ByteBuffer getByteBuffer() {
+		if (buffer == null)
+		{
+			buffer = ByteBuffer.wrap( value ).order( ByteOrder.LITTLE_ENDIAN);
+		}
+		return buffer;
+	}
+	private void fillBuffer(int idx, int hashCode, byte type, byte[] buff)
+	{
+		value = new byte[DATA_OFFSET+(buff==null?0:buff.length)];
+		getByteBuffer()
+				.putInt(idx)
+				.putInt( hashCode )
+				.put( type);
+		if (buff != null)
+		{
+			getByteBuffer().put( buff );
+		}
+	}
+	
 	private void write(DataOutputStream os, String s ) throws IOException
 	{
 		if (s == null )
 		{
-			os.writeInt( 0 );
+			os.writeInt( -1 );
 		}
 		else
 		{
@@ -134,43 +140,74 @@ public class CompressedNode implements Serializable
 	
 	public void setIdx( int idx )
 	{
-		if (this.idx != BitConstants.WILD)
+		if (getIdx() != BitConstants.WILD)
 		{
 			throw new IllegalStateException( "CompressedNode id must be WILD to be set" );
 		}
-		this.idx = idx;
+		getByteBuffer().putInt( IDX_OFFSET, idx );
+	}
+	
+	public byte[] getBuffer()
+	{
+		return value;
+	}
+	
+	public byte[] getData()
+	{
+		int size = getSize();
+		byte[] retval = new byte[ size ];
+		if (size>0 )
+		{
+			getByteBuffer().position( DATA_OFFSET );
+			getByteBuffer().get( retval );
+		}
+		return retval;
 	}
 	
 	public int getSize()
 	{
-		return value.length;
+		return value.length-DATA_OFFSET;
+	}
+	
+	public byte getType()
+	{
+		getByteBuffer().position( TYPE_OFFSET );
+		return getByteBuffer().get();
 	}
 	
 	public int getIdx()
 	{
-		return idx;
+		getByteBuffer().position( IDX_OFFSET );
+		return getByteBuffer().getInt();
 	}
 	
+	@Override
 	public int hashCode()
 	{
-		return hashCode;
+		getByteBuffer().position( HASH_CODE_OFFSET );
+		return getByteBuffer().getInt();
 	}
 	
+	@Override
 	public boolean equals( Object o )
 	{
 		if (o instanceof CompressedNode )
 		{
 			CompressedNode cn = (CompressedNode)o;
-			if (type==cn.type && value.length == cn.value.length)
+			if (hashCode() == cn.hashCode() 
+					&& getType()==cn.getType() 
+					&& getSize() == cn.getSize() )
 			{
-				for (int i=0;i<value.length;i++)
+				if (getSize() > 0)
 				{
-					if (value[i] != cn.value[i])
+					cn.getByteBuffer().position( DATA_OFFSET );
+					getByteBuffer().position( DATA_OFFSET );
+					int i = getByteBuffer().compareTo( cn.getByteBuffer() );
+					if (i == 0)
 					{
-						return false;
+						return true;
 					}
 				}
-				return true;
 			}
 		}
 		return false;
@@ -178,11 +215,16 @@ public class CompressedNode implements Serializable
 	
 	public Node getNode() throws IOException
 	{
-		if (node == null || node.get() == null)
+		Node retval = null;
+		if (node != null) 
 		{
-			extractNode();
+			retval = node.get();
 		}
-		return node.get();
+		if (retval == null)
+		{
+			retval = extractNode();
+		}
+		return retval;
 	}
 	
 	private String decodeString( byte[] b )
@@ -199,53 +241,63 @@ public class CompressedNode implements Serializable
 	private String read(DataInputStream is) throws IOException
 	{
 		int n = is.readInt();
-		if (n == 0)
+		if (n == -1)
 		{
 			return null;
 		}
 		byte[] b = new byte[n];
-		is.read(b);
+		if (n>0)
+		{
+			is.read(b);
+		}
 		return decodeString( b );
 	}
 	
-	private void extractNode() throws IOException
+	private Node extractNode() throws IOException
 	{
-		if (type == _ANON )
+		
+		Node lnode = null;
+		byte type = getType();
+		switch (type)
 		{
-			node = new SoftReference<Node>( NodeFactory.createAnon( AnonId.create( decodeString( value ))));
-		}
-		if (type == _LIT || type == _LITC)
-		{
-			
-			InputStream bais = new ByteArrayInputStream( value );
+		case _ANON:
+			lnode =  NodeFactory.createAnon( AnonId.create( decodeString( getData() )));
+			break;
+		
+		case _LIT :
+		case _LITC:
+			InputStream bais = new ByteArrayInputStream( getData() );
 			if (type == _LITC)
 			{
 				bais = new GZIPInputStream( bais );	
 			}
 			DataInputStream is = new DataInputStream( new BufferedInputStream( bais ) );
 			String lex = read(is);
-			String lang = read(is);;
+			String lang = StringUtils.defaultIfBlank( read(is), null );
 			String dtURI = read(is);
 			is.close();
-			RDFDatatype dtype = StringUtils.isEmpty(dtURI)?null:TYPE_MAPPER.getSafeTypeByName(dtURI);
-			node = new SoftReference<Node>( NodeFactory.createUncachedLiteral(lex, lang, dtype));
+			RDFDatatype dtype = StringUtils.isEmpty(dtURI)?null:TypeMapper.getInstance().getTypeByName(dtURI);
+			LiteralLabel ll = LiteralLabelFactory.create(lex, lang, dtype);
+			lnode = NodeFactory.createLiteral(ll);
+			break;
+			
+		case _URI:
+			lnode = NodeFactory.createURI( decodeString( getData() ));
+			break;
+			
+		case _VAR:
+			lnode = NodeFactory.createVariable(decodeString( getData() ));
+			break;
+			
+		case _ANY:
+			lnode = Node.ANY;
+			break;
+			
+		default:
+			throw new RuntimeException( String.format( "Unable to parse node: %0o", type));
 		}
-		if (type == _URI)
-		{
-			node = new SoftReference<Node>( NodeFactory.createURI( decodeString( value )));
-		}
-		if (type == _VAR)
-		{
-			node = new SoftReference<Node>( NodeFactory.createVariable(decodeString( value )));
-		}
-		if (type == _ANY)
-		{
-			node = new SoftReference<Node>( Node.ANY );
-		}
-		if (node == null)
-		{
-			throw new RuntimeException( "Unable to parse node");
-		}
+		node = new SoftReference<Node>( lnode );
+		return lnode;
 	}
 	
 	private byte[] encodeString( String s )
