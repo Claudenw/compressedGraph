@@ -17,7 +17,6 @@
  */
 package org.xenei.compressedgraph.core;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -31,6 +30,10 @@ import com.hp.hpl.jena.util.iterator.Map1;
 import com.hp.hpl.jena.util.iterator.NiceIterator;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
+/**
+ * A sparse matrix (2D axis)
+ * 
+ */
 public class BitMatrix implements BitConstants, Serializable {
 	private int pageSize;
 	private transient final ReentrantReadWriteLock LOCK_FACTORY = new ReentrantReadWriteLock();
@@ -183,16 +186,16 @@ public class BitMatrix implements BitConstants, Serializable {
 
 	private static class Mapper implements Map1<Integer, Idx> {
 
-        private int y;
+		private int y;
 
-        public Mapper(int y) {
-                this.y = y;
-        }
+		public Mapper(int y) {
+			this.y = y;
+		}
 
-        @Override
-        public Idx map1(Integer o) {
-                return new Idx(o, y);
-        }
+		@Override
+		public Idx map1(Integer o) {
+			return new Idx(o, y);
+		}
 
 	}
 

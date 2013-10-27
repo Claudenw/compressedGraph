@@ -21,6 +21,11 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+/**
+ * An iterator over a bitset that provides the integer position for each bit
+ * that is set.
+ * 
+ */
 public class BitSetIterator implements Iterator<Integer> {
 	private BitSet bs;
 	private int next;

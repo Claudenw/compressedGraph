@@ -22,17 +22,19 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
+import org.xenei.compressedgraph.CompressedNode;
+import org.xenei.compressedgraph.INodeMap;
 import org.xenei.compressedgraph.core.BitConstants;
-import org.xenei.compressedgraph.covert.CompressedNode;
 
 import com.hp.hpl.jena.graph.Node;
 
-public class NodeMap implements Serializable {
+/**
+ * A node map that stores everyting in memory.
+ * 
+ */
+public class NodeMap implements INodeMap, Serializable {
 	private List<CompressedNode> lst;
 	private Map<CompressedNode, CompressedNode> map;
 
@@ -41,6 +43,7 @@ public class NodeMap implements Serializable {
 		map = new HashMap<CompressedNode, CompressedNode>();
 	}
 
+	@Override
 	public synchronized CompressedNode get(Node n) throws IOException {
 		if (n == null || n == Node.ANY) {
 			return CompressedNode.ANY;
@@ -55,6 +58,7 @@ public class NodeMap implements Serializable {
 		return cn;
 	}
 
+	@Override
 	public CompressedNode get(int idx) {
 		return lst.get(idx);
 	}
@@ -71,26 +75,33 @@ public class NodeMap implements Serializable {
 	}
 
 	private void writeObject(java.io.ObjectOutputStream out) throws IOException {
-		out.writeInt( lst.size() );
-		for (int i=0;i<lst.size();i++)
-		{
-			out.writeObject( lst.get(i) );
+		out.writeInt(lst.size());
+		for (int i = 0; i < lst.size(); i++) {
+			out.writeObject(lst.get(i));
 		}
 	}
 
 	private void readObject(java.io.ObjectInputStream in) throws IOException,
 			ClassNotFoundException {
 		int count = in.readInt();
-		for (int i=0;i<count;i++)
-		{
+		for (int i = 0; i < count; i++) {
 			CompressedNode cn = (CompressedNode) in.readObject();
-			if (lst.size() <= cn.getIdx())
-			{
-				int fill = cn.getIdx()-lst.size()+1;
-				lst.addAll( Arrays.asList(new CompressedNode[fill]) );
+			if (lst.size() <= cn.getIdx()) {
+				int fill = cn.getIdx() - lst.size() + 1;
+				lst.addAll(Arrays.asList(new CompressedNode[fill]));
 			}
-			lst.set( cn.getIdx(), cn  );
-			map.put( cn,  cn );
+			lst.set(cn.getIdx(), cn);
+			map.put(cn, cn);
 		}
+	}
+
+	@Override
+	public void close() {
+		// do nothing
+	}
+
+	@Override
+	public int count() {
+		return lst.size();
 	}
 }

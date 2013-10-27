@@ -15,14 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.xenei.compressedgraph.mem;
+package org.xenei.compressedgraph.hmp;
 
 import static org.junit.Assert.*;
 
 import java.util.List;
 
 import org.junit.Test;
-import org.xenei.compressedgraph.mem.CompressedGraph;
 
 import com.hp.hpl.jena.graph.Node;
 import com.hp.hpl.jena.graph.NodeFactory;
@@ -31,7 +30,11 @@ import com.hp.hpl.jena.vocabulary.RDF;
 
 public class CompressedGraphTest {
 
-	private CompressedGraph graph = new CompressedGraph();
+	private CompressedGraph graph;
+
+	public CompressedGraphTest() throws Exception {
+		graph = new CompressedGraph();
+	}
 
 	@Test
 	public void testAdd() {
@@ -51,6 +54,7 @@ public class CompressedGraphTest {
 		p = NodeFactory.createURI("http://example.com/fob");
 		o = NodeFactory.createLiteral("5");
 		graph.add(new Triple(s, p, o));
+
 	}
 
 	@Test

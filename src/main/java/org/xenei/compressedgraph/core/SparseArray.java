@@ -31,6 +31,12 @@ import com.hp.hpl.jena.util.iterator.Filter;
 import com.hp.hpl.jena.util.iterator.Map1;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
+/**
+ * A sparse array of objects
+ * 
+ * @param <T>
+ *            The objects to store
+ */
 public class SparseArray<T> implements Serializable {
 	private Page first;
 	private Page last;

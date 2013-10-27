@@ -17,6 +17,10 @@
  */
 package org.xenei.compressedgraph.core;
 
+/**
+ * Constants used for the bit mapping and compressed node.
+ * 
+ */
 public interface BitConstants {
 	public static final int WILD = -1;
 	public static final int DEFAULT_PAGE_SIZE = 4096;

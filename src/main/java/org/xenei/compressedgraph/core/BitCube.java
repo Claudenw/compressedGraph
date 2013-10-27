@@ -17,19 +17,21 @@
  */
 package org.xenei.compressedgraph.core;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
-
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.hp.hpl.jena.util.iterator.Map1;
 import com.hp.hpl.jena.util.iterator.NiceIterator;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
+/**
+ * A sparse cube (3-axis matrix)
+ * 
+ */
 public class BitCube implements BitConstants, Serializable {
 
 	private SparseArray<BitMatrix> depth;

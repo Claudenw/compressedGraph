@@ -15,32 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.xenei.compressedgraph.bdb;
+package org.xenei.compressedgraph.hmp;
 
-import org.xenei.compressedgraph.CompressedNode;
-
-import com.sleepycat.je.DatabaseEntry;
-import com.sleepycat.je.SecondaryDatabase;
-import com.sleepycat.je.SecondaryKeyCreator;
+import java.io.IOException;
+import org.xenei.compressedgraph.AbstractCompressedGraph;
 
 /**
- * Key createor fo the Berkley DB
+ * A compressed graph that stores data in 2 random access files.
  * 
  */
-public class IdxKeyCreator implements SecondaryKeyCreator {
+public class CompressedGraph extends AbstractCompressedGraph {
 
-	public IdxKeyCreator() {
-		// TODO Auto-generated constructor stub
+	public CompressedGraph() throws IOException {
+		super(new NodeMap());
 	}
 
-	@Override
-	public boolean createSecondaryKey(SecondaryDatabase secondary,
-			DatabaseEntry key, DatabaseEntry data, DatabaseEntry result) {
-		if (data != null) {
-			// Convert dataEntry to an Inventory object
-			result.setData(CompressedNode.getRawIdx(data.getData()));
-		}
-		return true;
+	public CompressedGraph(int pageSize) throws IOException {
+		super(pageSize, new NodeMap());
 	}
-
 }
