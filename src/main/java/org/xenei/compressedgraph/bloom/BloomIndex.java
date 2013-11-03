@@ -68,6 +68,14 @@ public class BloomIndex {
 		return WrappedIterator.create( new BufferIterator( pattern, ByteBuffer.wrap( buff ) ));
 	}
 	
+	public static ExtendedIterator<ByteBuffer> getIndexIterator( byte pattern )
+	{
+		byte[] patt = { pattern };
+		byte[] max = { (byte) 0xFF };
+		
+		return WrappedIterator.create( new BufferIterator( ByteBuffer.wrap(patt), ByteBuffer.wrap( max ) ));
+	}
+	
 	public static ExtendedIterator<ByteBuffer> getIndexIterator( ByteBuffer pattern, ByteBuffer limit )
 	{
 		return WrappedIterator.create( new BufferIterator( pattern, limit ));
