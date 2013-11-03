@@ -9,18 +9,14 @@ public interface BloomCapabilities {
   /**
    * bloom values are correctly matched.
    * 
-   * Bloom values are 4 bytes and may be interpreted as unsigned integers by the
-   * underlying data store.
    * 
-   * to support full bloom the underlying data store must match the bit patterns
+   * to support bloom query the underlying data store must match the bit patterns
    * as per the bloom filter definition  http://en.wikipedia.org/wiki/Bloom_filter
    * 
-   * other support is to return all unsigned ints that are greater than or equal to
-   * the requested 4 bytes interpreted as a little endian unsigned integer.
-   * http://en.wikipedia.org/wiki/Endianness
+   * if full bloom is not supported then exact must be.
    * 
    */
-  boolean supportsFullBloom();
+  boolean supportsBloomQuery();
   
   /**
    * bloom filters may be matched exactly.
@@ -68,7 +64,7 @@ public interface BloomCapabilities {
    * @param bloomValue The 4 byte bloom value used for searching
    * @param data the data to write.
    */
-  void write(byte[] bloomValue, ByteBuffer data );
+  void write(ByteBuffer bloomValue, ByteBuffer data );
   
   /**
    * return true if this store premits deletion (not read only).
@@ -83,7 +79,7 @@ public interface BloomCapabilities {
    * @param bloomValue
    * @param data
    */
-  void delete(byte[] bloomValue, ByteBuffer data);
+  void delete(ByteBuffer bloomValue, ByteBuffer data);
   
   /**
    * Find a series of entries.
@@ -92,10 +88,16 @@ public interface BloomCapabilities {
    * @param exact if true only exact matches should be returned (if supported).
    * @return An ExtendedIterator of the ByteBuffer values that were written to the store.
    */
-  ExtendedIterator<ByteBuffer> find(byte[] bloomValue, boolean exact);
+  ExtendedIterator<ByteBuffer> find(ByteBuffer bloomValue, boolean exact);
   
   /**
    * close the underlying connection to the data store
    */
   void close();
+  
+  /**
+   * Return the largest value bit pattern for the bytebuffer
+   * @return
+   */
+  ByteBuffer getMaxBloomValue();
 }

@@ -2,8 +2,10 @@ package org.xenei.compressedgraph.mem;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -20,19 +22,19 @@ import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
 public class MemBloomCapabilities implements BloomCapabilities {
 
-	private NavigableMap<Long, Set<ByteBuffer>> dataMap;
+	private NavigableMap<ByteBuffer, Set<ByteBuffer>> dataMap;
 	private Comparator<ByteBuffer> comparator;
 
 	private long count = 0;
 
 	public MemBloomCapabilities() {
-		dataMap = new ConcurrentSkipListMap<Long, Set<ByteBuffer>>();
 		comparator = new BloomGraph.ByteBufferComparator();
+		dataMap = new ConcurrentSkipListMap<ByteBuffer, Set<ByteBuffer>>( comparator );
 	}
 
 	@Override
-	public boolean supportsFullBloom() {
-		return true;
+	public boolean supportsBloomQuery() {
+		return false;
 	}
 
 	@Override
@@ -66,14 +68,12 @@ public class MemBloomCapabilities implements BloomCapabilities {
 	}
 	
 	@Override
-	public void write(byte[] bloomValue, ByteBuffer data) {
-		Long bloom = BloomGraph.getBloomValue(bloomValue);
-
-		Set<ByteBuffer> dataSet = dataMap.get(bloom);
+	public void write(ByteBuffer bloomValue, ByteBuffer data) {
+		Set<ByteBuffer> dataSet = dataMap.get(bloomValue);
 		if (dataSet == null) {
 			dataSet = new ConcurrentSkipListSet<ByteBuffer>( comparator );
 			dataSet.add(data);
-			dataMap.put(bloom, dataSet);
+			dataMap.put(bloomValue, dataSet);
 			count++;
 		} else {
 			
@@ -90,11 +90,8 @@ public class MemBloomCapabilities implements BloomCapabilities {
 	}
 
 	@Override
-	public void delete(byte[] bloomValue, ByteBuffer data) {
-
-		Long bloom = BloomGraph.getBloomValue(bloomValue);
-		Set<ByteBuffer> dataSet = dataMap.get(bloom);
-
+	public void delete(ByteBuffer bloomValue, ByteBuffer data) {
+		Set<ByteBuffer> dataSet = dataMap.get(bloomValue);
 		if (dataSet != null) {
 			if (dataSet.contains(data)) {
 				dataSet.remove(data);
@@ -104,11 +101,10 @@ public class MemBloomCapabilities implements BloomCapabilities {
 	}
 
 	@Override
-	public ExtendedIterator<ByteBuffer> find(byte[] bloomValue, boolean exact) {
-		Long bloom = BloomGraph.getBloomValue(bloomValue);
+	public ExtendedIterator<ByteBuffer> find(ByteBuffer bloomValue, boolean exact) {
 		Set<ByteBuffer> set;
 		if (exact) {
-			set = dataMap.get(bloom);
+			set = dataMap.get(bloomValue);
 			if (set == null) {
 				return NiceIterator.emptyIterator();
 			} else {
@@ -116,42 +112,20 @@ public class MemBloomCapabilities implements BloomCapabilities {
 			}
 
 		} else {
-			return WrappedIterator
-					.createIteratorIterator(WrappedIterator
-							.create(dataMap.tailMap(bloom).entrySet()
-									.iterator())
-							.filterKeep(new MyFilter(bloom))
-							.mapWith(
-									new Map1<Entry<Long, Set<ByteBuffer>>, Iterator<ByteBuffer>>() {
-
-										@Override
-										public Iterator<ByteBuffer> map1(
-												Entry<Long, Set<ByteBuffer>> o) {
-											return o.getValue().iterator();
-										}
-									}));
+			throw new UnsupportedOperationException( "Bloom query is not supported");
 		}
 
 	}
 
+
+	@Override
+	public ByteBuffer getMaxBloomValue() {
+		return dataMap.lastEntry().getKey();
+	}
+	
 	@Override
 	public void close() {
 		// TODO Auto-generated method stub
-
-	}
-
-	private class MyFilter extends Filter<Entry<Long, Set<ByteBuffer>>> {
-
-		Long bloom;
-
-		MyFilter(Long bloom) {
-			this.bloom = bloom;
-		}
-
-		@Override
-		public boolean accept(Entry<Long, Set<ByteBuffer>> o) {
-			return (o.getKey() & bloom) == bloom;
-		}
 
 	}
 }

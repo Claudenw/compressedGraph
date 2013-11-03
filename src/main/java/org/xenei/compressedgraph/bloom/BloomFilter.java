@@ -27,7 +27,7 @@ public class BloomFilter extends Filter<SerializableTriple> {
 
     // quick check of the bloom filter
     private boolean checkBloom(SerializableTriple candidate) {
-      if (!io.supportsFullBloom())
+      if (!io.supportsBloomQuery())
       {
         if (exact)
         {

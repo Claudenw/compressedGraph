@@ -81,7 +81,7 @@ public class SerializableTriple {
   }
   private void fillBuffer(SerializableNode s, SerializableNode p,
       SerializableNode o) {
-    int hashCode = s.hashCode() & p.hashCode() & o.hashCode();
+    int hashCode = s.hashCode() | p.hashCode() | o.hashCode();
     int dataLen = s.getBuffer().length + p.getBuffer().length
         + o.getBuffer().length;
     value = new byte[dataLen + S_POS];
