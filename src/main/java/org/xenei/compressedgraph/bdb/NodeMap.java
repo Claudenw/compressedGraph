@@ -114,7 +114,7 @@ public class NodeMap implements INodeMap, Serializable {
 
 	private byte[] getKey(CompressedNode node) {
 		byte[] retval = new byte[5 + node.getSize()];
-		ByteBuffer.wrap(retval).order(ByteOrder.LITTLE_ENDIAN)
+		ByteBuffer.wrap(retval).order(ByteOrder.BIG_ENDIAN)
 				.putInt(node.hashCode()).put(node.getType())
 				.put(node.getData());
 		return retval;

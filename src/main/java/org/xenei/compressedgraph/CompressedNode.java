@@ -53,14 +53,9 @@ import com.hp.hpl.jena.rdf.model.AnonId;
  * I serializable so that it can be written to a stream if necessary.
  * 
  */
-public class CompressedNode implements Serializable {
-	private static final byte _ANON = 0x01;
-	private static final byte _LIT = 0x02;
-	private static final byte _LITC = 0x03; // compressed literal
-	private static final byte _URI = 0x04;
-	private static final byte _VAR = 0x05;
-	private static final byte _ANY = 0x06;
-	private static final int MAX_STR_SIZE = 20;
+public class CompressedNode implements NodeTypes, Serializable {
+
+	private static final int MAX_STR_SIZE = 128;
 
 	private static final int IDX_OFFSET = 0;
 	private static final int HASH_CODE_OFFSET = 4;
@@ -81,8 +76,7 @@ public class CompressedNode implements Serializable {
 	private byte[] value;
 
 	public CompressedNode(byte[] compressedValue) {
-		this.node = null;
-		this.value = compressedValue;
+		value = compressedValue;
 	}
 
 	public CompressedNode(Node n, int idx) throws IOException {
@@ -124,7 +118,7 @@ public class CompressedNode implements Serializable {
 
 	private ByteBuffer getByteBuffer() {
 		if (buffer == null) {
-			buffer = ByteBuffer.wrap(value).order(ByteOrder.LITTLE_ENDIAN);
+			buffer = ByteBuffer.wrap(value).order(ByteOrder.BIG_ENDIAN);
 		}
 		return buffer;
 	}
@@ -203,7 +197,7 @@ public class CompressedNode implements Serializable {
 
 	public static byte[] getRawIdx(int i) {
 		byte[] retval = new byte[4];
-		ByteBuffer.wrap(retval).order(ByteOrder.LITTLE_ENDIAN).putInt(i);
+		ByteBuffer.wrap(retval).order(ByteOrder.BIG_ENDIAN).putInt(i);
 		return retval;
 	}
 
