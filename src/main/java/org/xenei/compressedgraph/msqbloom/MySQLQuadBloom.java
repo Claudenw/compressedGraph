@@ -56,10 +56,10 @@ public class MySQLQuadBloom implements BloomCapabilities {
 				"AND idx4=? "
 				, table));
 		findBloom = conn.prepareStatement(String.format("SELECT data FROM %1$s, bloomByteMap idx1, bloomByteMap idx2, bloomByteMap idx3, bloomByteMap idx4 " +
-				"WHERE %1$s.idx1=idx1.val AND idx1.id=? " +
-				"AND %1$s.idx2=idx2.val AND idx2.id=? " +
-				"AND %1$s.idx3=idx3.val AND idx3.id=? " +
-				"AND %1$s.idx4=idx4.val AND idx4.id=? "
+				"WHERE %1$s.id1=idx1.value AND idx1.id=? " +
+				"AND %1$s.id2=idx2.value AND idx2.id=? " +
+				"AND %1$s.id3=idx3.value AND idx3.id=? " +
+				"AND %1$s.id4=idx4.value AND idx4.id=? "
 				, table));
 		count = conn.prepareStatement(String.format("SELECT count(*) FROM %s", table));
 		maxValue = conn.prepareStatement(String.format("SELECT max(id1), max(id2), max(id3), max(id4) from %s",table));		
@@ -67,14 +67,16 @@ public class MySQLQuadBloom implements BloomCapabilities {
 	
 	public void populateByteMap() throws SQLException
 	{
-		PreparedStatement pstmt = conn.prepareStatement( "INSERT INTO bloomByteMap SET id=? value=?" );
+		PreparedStatement pstmt = conn.prepareStatement( "INSERT INTO bloomByteMap SET id=?, value=?" );
 		for (int i =0;i<0xFF;i++)
 		{
 			Iterator<ByteBuffer> iter = BloomIndex.getIndexIterator( (byte)i );
 			while (iter.hasNext())
 			{
+				int j = (int)(0xFF & iter.next().get(0)); 
 				pstmt.setByte(1, (byte) i );
-				pstmt.setByte(2, iter.next().get() );
+				pstmt.setByte(2, (byte) j );
+				System.out.println( pstmt.toString() );
 				pstmt.execute();
 			}
 		}
@@ -82,7 +84,7 @@ public class MySQLQuadBloom implements BloomCapabilities {
 
 	@Override
 	public boolean supportsBloomQuery() {
-		return false;
+		return true;
 	}
 
 	@Override
@@ -144,7 +146,7 @@ public class MySQLQuadBloom implements BloomCapabilities {
 			insert.setByte(2, bloomValue.get(1));
 			insert.setByte(3, bloomValue.get(2));
 			insert.setByte(4, bloomValue.get(3));
-			insert.setBlob(2, b);
+			insert.setBlob(5, b);
 			insert.executeUpdate();
 		} catch (SerialException e) {
 			LOG.error(e.getMessage(), e);
