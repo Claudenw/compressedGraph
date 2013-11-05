@@ -67,7 +67,7 @@ public class BloomFilter extends Filter<SerializableTriple> {
 
     private boolean match(SerializableNode targetNode,
         SerializableNode answerNode) {
-      return targetNode == null || targetNode == SerializableNode.ANY
+      return targetNode == null || targetNode.equals(SerializableNode.ANY)
           || targetNode.equals(answerNode);
     }
 
