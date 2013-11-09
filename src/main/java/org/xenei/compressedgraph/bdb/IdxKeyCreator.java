@@ -17,7 +17,7 @@
  */
 package org.xenei.compressedgraph.bdb;
 
-import org.xenei.compressedgraph.CompressedNode;
+import org.xenei.compressedgraph.SerializableNode;
 
 import com.sleepycat.je.DatabaseEntry;
 import com.sleepycat.je.SecondaryDatabase;
@@ -38,7 +38,7 @@ public class IdxKeyCreator implements SecondaryKeyCreator {
 			DatabaseEntry key, DatabaseEntry data, DatabaseEntry result) {
 		if (data != null) {
 			// Convert dataEntry to an Inventory object
-			result.setData(CompressedNode.getRawIdx(data.getData()));
+			result.setData(SerializableNode.getRawIdx(data.getData()));
 		}
 		return true;
 	}

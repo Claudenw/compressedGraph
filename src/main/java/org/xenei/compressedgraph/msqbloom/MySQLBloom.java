@@ -9,6 +9,7 @@ import org.xenei.compressedgraph.bloom.BloomGraph;
 
 import com.hp.hpl.jena.util.iterator.ClosableIterator;
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
+import com.hp.hpl.jena.util.iterator.NiceIterator;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
 import java.sql.Blob;
@@ -43,14 +44,16 @@ public class MySQLBloom implements BloomCapabilities {
 			IllegalAccessException, ClassNotFoundException, SQLException {
 		Class.forName("com.mysql.jdbc.Driver").newInstance();
 		conn = DriverManager.getConnection(url);
-		insert = conn
-				.prepareStatement(String.format("INSERT INTO %s SET bloomId=?, data=?", table));
-		delete = conn
-				.prepareStatement(String.format("DELETE FROM %s WHERE bloomId=? AND data=?", table));
-		find = conn
-				.prepareStatement(String.format("SELECT data FROM %s WHERE bloomId=?", table));
-		count = conn.prepareStatement(String.format("SELECT count(*) FROM %s", table));
-		maxValue = conn.prepareStatement(String.format("SELECT max(bloomId) from %s",table));
+		insert = conn.prepareStatement(String.format(
+				"INSERT INTO %s SET bloomId=?, data=?", table));
+		delete = conn.prepareStatement(String.format(
+				"DELETE FROM %s WHERE bloomId=? AND data=?", table));
+		find = conn.prepareStatement(String.format(
+				"SELECT data FROM %s WHERE bloomId=?", table));
+		count = conn.prepareStatement(String.format("SELECT count(*) FROM %s",
+				table));
+		maxValue = conn.prepareStatement(String.format(
+				"SELECT max(bloomId) from %s", table));
 	}
 
 	@Override
@@ -178,7 +181,7 @@ public class MySQLBloom implements BloomCapabilities {
 		} catch (SQLException e) {
 			LOG.error(e.getMessage(), e);
 			closeQuietly(rs);
-			return WrappedIterator.emptyIterator();
+			return NiceIterator.emptyIterator();
 		}
 	}
 

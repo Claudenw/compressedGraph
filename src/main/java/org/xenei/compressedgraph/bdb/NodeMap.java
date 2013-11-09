@@ -39,10 +39,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 
-import org.xenei.compressedgraph.CompressedNode;
+import org.xenei.compressedgraph.SerializableNode;
 import org.xenei.compressedgraph.INodeMap;
-import org.xenei.compressedgraph.core.BitConstants;
-
 import com.hp.hpl.jena.graph.Node;
 
 /**
@@ -112,7 +110,7 @@ public class NodeMap implements INodeMap, Serializable {
 		}
 	}
 
-	private byte[] getKey(CompressedNode node) {
+	private byte[] getKey(SerializableNode node) throws IOException {
 		byte[] retval = new byte[5 + node.getSize()];
 		ByteBuffer.wrap(retval).order(ByteOrder.BIG_ENDIAN)
 				.putInt(node.hashCode()).put(node.getType())
@@ -121,12 +119,12 @@ public class NodeMap implements INodeMap, Serializable {
 	}
 
 	@Override
-	public synchronized CompressedNode get(Node n) throws IOException {
+	public synchronized SerializableNode get(Node n) throws IOException {
 		if (n == null || n == Node.ANY) {
-			return CompressedNode.ANY;
+			return SerializableNode.ANY;
 		}
 
-		CompressedNode wild = new CompressedNode(n, BitConstants.WILD);
+		SerializableNode wild = new SerializableNode(n);
 		DatabaseEntry key = new DatabaseEntry(getKey(wild));
 		DatabaseEntry data = new DatabaseEntry();
 		OperationStatus result = myDatabase.get(null, key, data,
@@ -139,20 +137,20 @@ public class NodeMap implements INodeMap, Serializable {
 			myDatabase.put(null, key, data);
 			return wild;
 		} else {
-			return new CompressedNode(data.getData());
+			return new SerializableNode(data.getData());
 		}
 	}
 
 	@Override
-	public CompressedNode get(int idx) {
-		DatabaseEntry key = new DatabaseEntry(CompressedNode.getRawIdx(idx));
+	public SerializableNode get(int idx) {
+		DatabaseEntry key = new DatabaseEntry(SerializableNode.getRawIdx(idx));
 		DatabaseEntry data = new DatabaseEntry();
 		OperationStatus result = myIdxIndex.get(null, key, data,
 				LockMode.DEFAULT);
 		if (result == OperationStatus.NOTFOUND) {
 			return null;
 		} else {
-			return new CompressedNode(data.getData());
+			return new SerializableNode(data.getData());
 		}
 	}
 
@@ -164,7 +162,7 @@ public class NodeMap implements INodeMap, Serializable {
 			out.write((int) myDatabase.count());
 			cursor = myDatabase.openCursor(null, null);
 			while (cursor.getNext(foundKey, foundData, LockMode.DEFAULT) == OperationStatus.SUCCESS) {
-				out.writeObject(new CompressedNode(foundData.getData()));
+				out.writeObject(new SerializableNode(foundData.getData()));
 			}
 		} catch (DatabaseException dbe) {
 			throw new IOException(dbe);
@@ -181,7 +179,7 @@ public class NodeMap implements INodeMap, Serializable {
 		DatabaseEntry data = new DatabaseEntry();
 		int count = in.readInt();
 		for (int i = 0; i < count; i++) {
-			CompressedNode cn = (CompressedNode) in.readObject();
+			SerializableNode cn = (SerializableNode) in.readObject();
 			key.setData(getKey(cn));
 			data.setData(cn.getBuffer());
 			if (myDatabase.put(null, key, data) != OperationStatus.SUCCESS) {

@@ -20,7 +20,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.IOUtils;
-import org.xenei.compressedgraph.CompressedNode;
+import org.xenei.compressedgraph.SerializableNode;
 import org.xenei.compressedgraph.INodeMap;
 import com.hp.hpl.jena.graph.Node;
 
@@ -71,15 +71,15 @@ public class NodeMap implements INodeMap {
 				});
 	}
 
-	private CompressedNode updateCache(CompressedNode cn) {
+	private SerializableNode updateCache(SerializableNode cn) {
 		cache.put(cn.getIdx(), new MapEntry(cn));
 		return cn;
 	}
 
 	@Override
-	public CompressedNode get(Node n) throws IOException {
+	public SerializableNode get(Node n) throws IOException {
 		if (n == null || n == Node.ANY) {
-			return CompressedNode.ANY;
+			return SerializableNode.ANY;
 		}
 
 		for (MapEntry e : cache.values()) {
@@ -90,7 +90,7 @@ public class NodeMap implements INodeMap {
 			}
 		}
 
-		CompressedNode cn;
+		SerializableNode cn;
 		ListSet<Integer> candidates = map.get(n.hashCode());
 
 		if (candidates != null) {
@@ -102,8 +102,8 @@ public class NodeMap implements INodeMap {
 			}
 		}
 
-		cn = new CompressedNode(n, size);
-		size++;
+		cn = new SerializableNode(n);
+		cn.setIdx(size++);
 		if (size % 1000 == 0) {
 			System.out.println("creating node " + size);
 		}
@@ -119,7 +119,7 @@ public class NodeMap implements INodeMap {
 	}
 
 	@Override
-	public CompressedNode get(int idx) throws IOException {
+	public SerializableNode get(int idx) throws IOException {
 		return read(idx);
 	}
 
@@ -157,7 +157,7 @@ public class NodeMap implements INodeMap {
 		return new File(dataDir, sb.append(".dat").toString());
 	}
 
-	// private void write( CompressedNode cn ) throws IOException
+	// private void write( SerializableNode cn ) throws IOException
 	// {
 	// File f = getFile( cn.getIdx() );
 	// f.getParentFile().mkdirs();
@@ -167,19 +167,19 @@ public class NodeMap implements INodeMap {
 	// }
 
 	// read an index
-	private CompressedNode read(final int idxNum) throws IOException {
+	private SerializableNode read(final int idxNum) throws IOException {
 		MapEntry e = cache.get(idxNum);
 		if (e == null) {
-			Future<CompressedNode> future = service
-					.submit(new Callable<CompressedNode>() {
+			Future<SerializableNode> future = service
+					.submit(new Callable<SerializableNode>() {
 						@Override
-						public CompressedNode call() throws IOException {
+						public SerializableNode call() throws IOException {
 							File f = getFile(idxNum);
 							byte[] buffer = new byte[(int) f.length()];
 							FileInputStream is = new FileInputStream(f);
 							is.read(buffer);
 							is.close();
-							return new CompressedNode(buffer);
+							return new SerializableNode(buffer);
 						}
 					});
 			// File f = getFile(idxNum);
@@ -187,9 +187,9 @@ public class NodeMap implements INodeMap {
 			// FileInputStream is = new FileInputStream(f);
 			// is.read(buffer);
 			// is.close();
-			// CompressedNode cn = new CompressedNode(buffer);
+			// SerializableNode cn = new SerializableNode(buffer);
 			try {
-				CompressedNode cn = future.get();
+				SerializableNode cn = future.get();
 				e = new MapEntry(cn);
 				cache.put(idxNum, e);
 			} catch (InterruptedException e2) {
@@ -216,9 +216,9 @@ public class NodeMap implements INodeMap {
 	}
 
 	public class Writer implements Runnable {
-		private CompressedNode cn;
+		private SerializableNode cn;
 
-		public Writer(CompressedNode cn) {
+		public Writer(SerializableNode cn) {
 			this.cn = cn;
 		}
 
@@ -242,15 +242,15 @@ public class NodeMap implements INodeMap {
 	}
 
 	public class MapEntry {
-		CompressedNode cn;
+		SerializableNode cn;
 		Future<?> f;
 
-		MapEntry(CompressedNode cn) {
+		MapEntry(SerializableNode cn) {
 			this.cn = cn;
 			this.f = null;
 		}
 
-		MapEntry(CompressedNode cn, Future<?> f) {
+		MapEntry(SerializableNode cn, Future<?> f) {
 			this.cn = cn;
 			this.f = f;
 		}
@@ -259,7 +259,7 @@ public class NodeMap implements INodeMap {
 			return f == null ? true : f.isDone();
 		}
 
-		public CompressedNode getNode() {
+		public SerializableNode getNode() {
 			return cn;
 		}
 	}

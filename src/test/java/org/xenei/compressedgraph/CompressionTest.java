@@ -1,4 +1,4 @@
-package org.xenei.compressedgraph.convert;
+package org.xenei.compressedgraph;
 
 import static org.junit.Assert.*;
 
@@ -33,7 +33,6 @@ public class CompressionTest {
 		byte[] v2 = baos.toByteArray();
 		int i = v1.length;
 		int ii = v2.length;
-		System.out.println(String.format("V1:%s V2:%s", v1.length, v2.length));
 		ByteArrayInputStream bais = new ByteArrayInputStream(v2);
 		GZIPInputStream dis = new GZIPInputStream(bais);
 		BufferedInputStream bis = new BufferedInputStream(dis);
@@ -42,7 +41,6 @@ public class CompressionTest {
 		int end = i;
 		while (end > 0) {
 			int iii = bis.read(v3, start, end);
-			System.out.println("Read back " + iii);
 			start += iii;
 			end -= iii;
 		}

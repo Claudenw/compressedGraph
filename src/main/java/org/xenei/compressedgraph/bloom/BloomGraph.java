@@ -14,6 +14,7 @@ import com.hp.hpl.jena.graph.impl.GraphBase;
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.hp.hpl.jena.util.iterator.Filter;
 import com.hp.hpl.jena.util.iterator.Map1;
+import com.hp.hpl.jena.util.iterator.NiceIterator;
 import com.hp.hpl.jena.util.iterator.WrappedIterator;
 
 public class BloomGraph extends GraphBase {
@@ -22,9 +23,9 @@ public class BloomGraph extends GraphBase {
 	private final static SerializableTripleMap TRIPLE_MAP = new SerializableTripleMap();
 
 	public BloomGraph(BloomCapabilities io) {
-		if (!io.supportsBloomQuery() && !io.supportsExact())
-		{
-			throw new IllegalArgumentException( "BloomCapabilities must support exact searching if bloom query is not supported");
+		if (!io.supportsBloomQuery() && !io.supportsExact()) {
+			throw new IllegalArgumentException(
+					"BloomCapabilities must support exact searching if bloom query is not supported");
 		}
 		this.io = io;
 	}
@@ -36,44 +37,42 @@ public class BloomGraph extends GraphBase {
 		try {
 			target = new SerializableTriple(m.asTriple());
 		} catch (IOException e) {
-			return WrappedIterator.emptyIterator();
+			return NiceIterator.emptyIterator();
 		}
 
 		boolean exact = !target.containsWild();
 		ExtendedIterator<SerializableTriple> stIter = null;
-		if (io.supportsBloomQuery())
-		{
-			stIter = io.find(getBloomValue(target), exact)
-				.mapWith(TRIPLE_MAP);
-				
-		}
-		else
-		{
+		if (io.supportsBloomQuery()) {
+			stIter = io.find(getBloomValue(target), exact).mapWith(TRIPLE_MAP);
+
+		} else {
 			ByteBuffer limit = io.getMaxBloomValue();
-			Iterator<Iterator<ByteBuffer>> iter = 
-					BloomIndex.getIndexIterator( getBloomValue(target), limit )
-					.mapWith( new Map1<ByteBuffer,Iterator<ByteBuffer>>(){
+			Iterator<Iterator<ByteBuffer>> iter = BloomIndex.getIndexIterator(
+					getBloomValue(target), limit).mapWith(
+					new Map1<ByteBuffer, Iterator<ByteBuffer>>() {
 
-				@Override
-				public Iterator<ByteBuffer> map1(ByteBuffer o) {
-					return io.find(o, true);
-				}} );
-			stIter = WrappedIterator.createIteratorIterator(iter).mapWith(TRIPLE_MAP);
+						@Override
+						public Iterator<ByteBuffer> map1(ByteBuffer o) {
+							return io.find(o, true);
+						}
+					});
+			stIter = WrappedIterator.createIteratorIterator(iter).mapWith(
+					TRIPLE_MAP);
 		}
-		
-		return stIter
-				.filterKeep( new BloomFilter( target, io ) )
-				.mapWith(new Map1<SerializableTriple, Triple>() {
 
-			public Triple map1(SerializableTriple o) {
-				try {
-					return o.getTriple();
-				} catch (IOException e) {
-					throw new RuntimeException(
-							"Triple not created during iteration");
-				}
-			}
-		});
+		return stIter.filterKeep(new BloomFilter(target, io)).mapWith(
+				new Map1<SerializableTriple, Triple>() {
+
+					@Override
+					public Triple map1(SerializableTriple o) {
+						try {
+							return o.getTriple();
+						} catch (IOException e) {
+							throw new RuntimeException(
+									"Triple not created during iteration");
+						}
+					}
+				});
 
 	}
 
@@ -100,7 +99,7 @@ public class BloomGraph extends GraphBase {
 		buff.get(dest);
 		return ByteBuffer.wrap(dest);
 	}
-	
+
 	@Override
 	public final void performAdd(Triple t) {
 		SerializableTriple st;
@@ -170,26 +169,26 @@ public class BloomGraph extends GraphBase {
 		}
 	}
 
-//	public static class ExactKeyMatchFilter extends Filter<SerializableTriple> {
-//		int desired;
-//
-//		ExactKeyMatchFilter(SerializableTriple t) {
-//			desired = t.hashCode();
-//		}
-//
-//		@Override
-//		public boolean accept(SerializableTriple o) {
-//			return desired == o.hashCode();
-//		}
-//
-//	}
+	// public static class ExactKeyMatchFilter extends
+	// Filter<SerializableTriple> {
+	// int desired;
+	//
+	// ExactKeyMatchFilter(SerializableTriple t) {
+	// desired = t.hashCode();
+	// }
+	//
+	// @Override
+	// public boolean accept(SerializableTriple o) {
+	// return desired == o.hashCode();
+	// }
+	//
+	// }
 
 	public static class ByteBufferComparator implements Comparator<ByteBuffer> {
 
 		@Override
 		public int compare(ByteBuffer arg0, ByteBuffer arg1) {
-			if (arg0.capacity() == arg1.capacity())
-			{
+			if (arg0.capacity() == arg1.capacity()) {
 				int len = arg0.capacity();
 				arg0.position(0);
 				arg1.position(0);
@@ -197,9 +196,11 @@ public class BloomGraph extends GraphBase {
 				for (int i = 0; i < len; i++) {
 					byte b0 = arg0.get();
 					byte b1 = arg1.get();
-					retval = compareNibble( BloomIndex.leftNibble(b0), BloomIndex.leftNibble(b1));
-					if (retval == 0){
-						retval = compareNibble( BloomIndex.rightNibble(b0), BloomIndex.rightNibble(b1));
+					retval = compareNibble(BloomIndex.leftNibble(b0),
+							BloomIndex.leftNibble(b1));
+					if (retval == 0) {
+						retval = compareNibble(BloomIndex.rightNibble(b0),
+								BloomIndex.rightNibble(b1));
 					}
 					if (retval != 0) {
 						return retval;
@@ -209,15 +210,15 @@ public class BloomGraph extends GraphBase {
 			}
 			return arg0.capacity() < arg1.capacity() ? -1 : 1;
 		}
-		
-		private int compareNibble( byte b0, byte b1)
-		{
+
+		private int compareNibble(byte b0, byte b1) {
 			return (b0 < b1) ? -1 : (b0 == b1) ? 0 : 1;
 		}
 	};
 
 	private static class SerializableTripleMap implements
 			Map1<ByteBuffer, SerializableTriple> {
+		@Override
 		public SerializableTriple map1(ByteBuffer o) {
 			return new SerializableTriple(o);
 		}
@@ -231,38 +232,47 @@ public class BloomGraph extends GraphBase {
 			this.io = io;
 		}
 
+		@Override
 		public boolean sizeAccurate() {
 			return io.sizeAccurate();
 		}
 
+		@Override
 		public boolean addAllowed() {
 			return io.addAllowed();
 		}
 
+		@Override
 		public boolean addAllowed(boolean every) {
 			return addAllowed();
 		}
 
+		@Override
 		public boolean deleteAllowed() {
 			return io.deleteAllowed();
 		}
 
+		@Override
 		public boolean deleteAllowed(boolean every) {
 			return deleteAllowed();
 		}
 
+		@Override
 		public boolean canBeEmpty() {
 			return io.canBeEmpty();
 		}
 
+		@Override
 		public boolean iteratorRemoveAllowed() {
 			return false;
 		}
 
+		@Override
 		public boolean findContractSafe() {
 			return true;
 		}
 
+		@Override
 		public boolean handlesLiteralTyping() {
 			return false;
 		}

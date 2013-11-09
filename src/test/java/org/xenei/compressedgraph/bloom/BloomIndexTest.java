@@ -3,10 +3,7 @@ package org.xenei.compressedgraph.bloom;
 import static org.junit.Assert.*;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -124,7 +121,8 @@ public class BloomIndexTest {
 		l[0] = (byte) 0xFF;
 		l[1] = (byte) 0xF8;
 		l[2] = (byte) 0xFF;
-		List<ByteBuffer> lst = BloomIndex.getIndexIterator(bb, ByteBuffer.wrap(l)).toList();
+		List<ByteBuffer> lst = BloomIndex.getIndexIterator(bb,
+				ByteBuffer.wrap(l)).toList();
 		assertEquals(expected.length, lst.size());
 		for (int i = 0; i < lst.size(); i++) {
 			assertTrue(String.format("missing %X", lst.get(i).get(0)),

@@ -27,9 +27,9 @@ import com.hp.hpl.jena.graph.Node;
  */
 public interface INodeMap extends Serializable {
 
-	public CompressedNode get(Node n) throws IOException;
+	public SerializableNode get(Node n) throws IOException;
 
-	public CompressedNode get(int idx) throws IOException;
+	public SerializableNode get(int idx) throws IOException;
 
 	public void close();
 

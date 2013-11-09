@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.xenei.compressedgraph.CompressedNode;
+import org.xenei.compressedgraph.SerializableNode;
 import org.xenei.compressedgraph.INodeMap;
 import com.hp.hpl.jena.graph.Node;
 
@@ -39,7 +39,7 @@ public class NodeMap implements INodeMap {
 	private Map<Integer, ListSet<Long>> map;
 	private int size;
 	final static int MAX_ENTRIES = 100;
-	private Map<Integer, CompressedNode> cache;
+	private Map<Integer, SerializableNode> cache;
 
 	public NodeMap() throws IOException {
 		File f = File.createTempFile("hmp", ".dat");
@@ -50,7 +50,7 @@ public class NodeMap implements INodeMap {
 		idx = new RandomAccessFile(fn, "rw");
 		map = new HashMap<Integer, ListSet<Long>>();
 		size = 0;
-		cache = new LinkedHashMap<Integer, CompressedNode>(MAX_ENTRIES + 1,
+		cache = new LinkedHashMap<Integer, SerializableNode>(MAX_ENTRIES + 1,
 				.75F, true) {
 			// This method is called just after a new entry has been added
 			@Override
@@ -60,24 +60,24 @@ public class NodeMap implements INodeMap {
 		};
 	}
 
-	private CompressedNode updateCache(CompressedNode cn) {
+	private SerializableNode updateCache(SerializableNode cn) {
 		cache.put(cn.getIdx(), cn);
 		return cn;
 	}
 
 	@Override
-	public CompressedNode get(Node n) throws IOException {
+	public SerializableNode get(Node n) throws IOException {
 		if (n == null || n == Node.ANY) {
-			return CompressedNode.ANY;
+			return SerializableNode.ANY;
 		}
 
-		for (CompressedNode cn : cache.values()) {
+		for (SerializableNode cn : cache.values()) {
 			if (n.equals(cn.getNode())) {
 				return updateCache(cn);
 			}
 		}
 
-		CompressedNode cn;
+		SerializableNode cn;
 		ListSet<Long> candidates = map.get(n.hashCode());
 
 		if (candidates != null) {
@@ -89,8 +89,8 @@ public class NodeMap implements INodeMap {
 			}
 		}
 
-		cn = new CompressedNode(n, size);
-		size++;
+		cn = new SerializableNode(n);
+		cn.setIdx(size++);
 		if (candidates == null) {
 			candidates = new ListSet<Long>();
 			map.put(cn.hashCode(), candidates);
@@ -101,7 +101,7 @@ public class NodeMap implements INodeMap {
 	}
 
 	@Override
-	public CompressedNode get(int idx) throws IOException {
+	public SerializableNode get(int idx) throws IOException {
 		return read(idx);
 	}
 
@@ -114,7 +114,7 @@ public class NodeMap implements INodeMap {
 		return size;
 	}
 
-	private long write(CompressedNode cn) throws IOException {
+	private long write(SerializableNode cn) throws IOException {
 		long retval = data.length();
 		byte[] buffer = cn.getBuffer();
 		data.seek(retval);
@@ -126,8 +126,8 @@ public class NodeMap implements INodeMap {
 	}
 
 	// read an index
-	private CompressedNode read(int idxNum) throws IOException {
-		CompressedNode cn = cache.get(idxNum);
+	private SerializableNode read(int idxNum) throws IOException {
+		SerializableNode cn = cache.get(idxNum);
 		if (cn == null) {
 			idx.seek(idxNum * 8);
 			long pos = idx.readLong();
@@ -137,12 +137,12 @@ public class NodeMap implements INodeMap {
 	}
 
 	// rad a position
-	private CompressedNode read(long pos) throws IOException {
+	private SerializableNode read(long pos) throws IOException {
 		data.seek(pos);
 		int length = data.readInt();
 		byte[] value = new byte[length];
 		data.readFully(value);
-		return new CompressedNode(value);
+		return new SerializableNode(value);
 	}
 
 	public static class ListSet<T> extends ArrayList<T> {

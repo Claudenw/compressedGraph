@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.junit.Test;
+import org.xenei.compressedgraph.EnumeratedNode;
 import org.xenei.compressedgraph.core.BitCube;
 import org.xenei.compressedgraph.core.BitCube.Idx;
 
@@ -315,13 +316,13 @@ public class BitCubeTest {
 		assertEquals(new Idx(1, 1, 1), iter.next());
 		assertFalse(iter.hasNext());
 
-		iter = cube.find(1, 1, BitConstants.WILD);
+		iter = cube.find(1, 1, EnumeratedNode.WILD);
 		assertTrue(iter.hasNext());
 		assertEquals(new Idx(1, 1, 1), iter.next());
 		assertEquals(new Idx(1, 1, 2), iter.next());
 		assertFalse(iter.hasNext());
 
-		iter = cube.find(100, BitConstants.WILD, 100);
+		iter = cube.find(100, EnumeratedNode.WILD, 100);
 		assertTrue(iter.hasNext());
 		assertEquals(new Idx(100, 50, 100), iter.next());
 		assertEquals(new Idx(100, 100, 100), iter.next());
@@ -330,9 +331,8 @@ public class BitCubeTest {
 		iter = cube.find(5, 5, 5);
 		assertFalse(iter.hasNext());
 
-		lst = cube
-				.find(BitConstants.WILD, BitConstants.WILD, BitConstants.WILD)
-				.toList();
+		lst = cube.find(EnumeratedNode.WILD, EnumeratedNode.WILD,
+				EnumeratedNode.WILD).toList();
 		assertEquals(20, lst.size());
 
 	}

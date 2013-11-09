@@ -26,13 +26,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
-import java.lang.ref.SoftReference;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.xenei.compressedgraph.core.BitConstants;
 
 import com.hp.hpl.jena.datatypes.RDFDatatype;
 import com.hp.hpl.jena.datatypes.TypeMapper;
@@ -53,235 +53,295 @@ import com.hp.hpl.jena.rdf.model.AnonId;
  * I serializable so that it can be written to a stream if necessary.
  * 
  */
-public class SerializableNode implements NodeTypes, Serializable {
-  
-  private static final int HASH_CODE_OFFSET = 0;
-  private static final int TYPE_OFFSET = 4;
-  private static final int DATA_OFFSET = 5;
-  public static final SerializableNode ANY;
+public class SerializableNode extends StoredNode implements NodeTypes,
+		Serializable, EnumeratedNode {
 
-  static {
-    try {
-      ANY = new SerializableNode(Node.ANY);
-    } catch (IOException e) {
-      throw new IllegalArgumentException(e);
-    }
-  }
+	private static final int MAX_STR_SIZE = 750;
 
-  private transient SoftReference<Node> node;
-  private transient ByteBuffer buffer;
-  private byte[] value;
+	private static final int HASH_CODE_OFFSET = 0;
+	private static final int IDX_OFFSET = 4;
+	private static final int TYPE_OFFSET = 8;
+	private static final int DATA_OFFSET = 9;
+	public static final SerializableNode ANY;
 
-  public SerializableNode(byte[] serializedValue) {
-    this.node = null;
-    this.value = serializedValue;
-  }
+	static {
+		try {
+			ANY = new SerializableNode(Node.ANY);
+		} catch (IOException e) {
+			throw new IllegalArgumentException(e);
+		}
+	}
 
-  public SerializableNode(Node n) throws IOException {
-    this.node = new SoftReference<Node>(n);
+	private transient ByteBuffer buffer;
+	private byte[] value;
 
-    if (n.equals(Node.ANY)) {
-      // ANY has a hash code of 0
-      fillBuffer(0, _ANY, null);
-    } else if (n.isVariable()) {
-      fillBuffer(n.hashCode(), _VAR, encodeString(n.getName()));
-    } else if (n.isURI()) {
-      fillBuffer(n.hashCode(), _URI, encodeString(n.getURI()));
-    } else if (n.isBlank()) {
-      fillBuffer( n.hashCode(), _ANON, encodeString(n
-          .getBlankNodeId().getLabelString()));
-    } else if (n.isLiteral()) {
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      DataOutputStream os = new DataOutputStream(baos);
-      write(os, n.getLiteralLexicalForm());
-      write(os, n.getLiteralLanguage());
-      write(os, n.getLiteralDatatypeURI());
+	public SerializableNode(byte[] serializedValue) {
+		super(null);
+		this.value = serializedValue;
+	}
 
-      os.close();
-      baos.close();
-      byte[] value = baos.toByteArray();
-      fillBuffer( n.hashCode(), _LIT, value);
-    } else {
-      throw new IllegalArgumentException("Unknown node type " + n);
-    }
-  }
+	public SerializableNode(Node n) throws IOException {
+		super(n);
+		if (n.equals(Node.ANY)) {
+			// ANY has a hash code of 0
+			fillBuffer(WILD, 0, _ANY, null);
+		} else if (n.isVariable()) {
+			fillBuffer(WILD, n.hashCode(), _VAR, encodeString(n.getName()));
+		} else if (n.isURI()) {
+			fillBuffer(WILD, n.hashCode(), _URI, encodeString(n.getURI()));
+		} else if (n.isBlank()) {
+			fillBuffer(WILD, n.hashCode(), _ANON, encodeString(n.getBlankNodeId()
+					.getLabelString()));
+		} else if (n.isLiteral()) {
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			DataOutputStream os = new DataOutputStream(baos);
+			write(os, n.getLiteralLexicalForm());
+			write(os, n.getLiteralLanguage());
+			write(os, n.getLiteralDatatypeURI());
 
-  private ByteBuffer getByteBuffer() {
-    if (buffer == null) {
-      buffer = ByteBuffer.wrap(value).order(ByteOrder.BIG_ENDIAN);
-    }
-    return buffer;
-  }
+			os.close();
+			baos.close();
+			byte[] value = baos.toByteArray();
+			if (value.length > MAX_STR_SIZE) {
+				baos = new ByteArrayOutputStream();
+				GZIPOutputStream dos = new GZIPOutputStream(baos);
+				dos.write(value);
+				dos.close();
+				fillBuffer(WILD, n.hashCode(),(byte) (_LIT | _COMPRESSED) , baos.toByteArray());
+			} else {
+				fillBuffer(WILD, n.hashCode(), _LIT, value);
+			}
+		} else {
+			throw new IllegalArgumentException("Unknown node type " + n);
+		}
+	}
 
-  private void fillBuffer(int hashCode, byte type, byte[] buff) {
-    value = new byte[DATA_OFFSET + (buff == null ? 0 : buff.length)];
-    getByteBuffer().putInt(hashCode).put(type);
-    if (buff != null) {
-      getByteBuffer().put(buff);
-    }
-  }
+	@Override
+	public int getIdx() {
+		return getByteBuffer().getInt(IDX_OFFSET);
+	}
 
-  private void write(DataOutputStream os, String s) throws IOException {
-    if (s == null) {
-      os.writeInt(-1);
-    } else {
-      byte[] b = encodeString(s);
-      os.writeInt(b.length);
-      if (b.length > 0) {
-        os.write(b);
-      }
-    }
-  }
+	public void setIdx(int idx) {
+		if (getIdx() != EnumeratedNode.WILD) {
+			throw new IllegalStateException(
+					"CompressedNode id must be WILD to be set");
+		}
+		getByteBuffer().putInt(IDX_OFFSET, idx);
+	}
 
-  
+	private ByteBuffer getByteBuffer() {
+		if (buffer == null) {
+			buffer = ByteBuffer.wrap(value).order(ByteOrder.BIG_ENDIAN);
+		}
+		return buffer;
+	}
 
-  /**
-   * Return the entire encoded buffer
-   * 
-   * @return
-   */
-  public byte[] getBuffer() {
-    return value;
-  }
+	protected void fillBuffer(int idx, int hashCode, byte type, byte[] buff) {
+		value = new byte[DATA_OFFSET + (buff == null ? 0 : buff.length)];
+		getByteBuffer().putInt(hashCode).putInt(idx).put(type);
+		if (buff != null) {
+			getByteBuffer().put(buff);
+		}
+	}
 
-  /**
-   * Return just the node data
-   * 
-   * @return
-   */
-  public byte[] getData() {
-    int size = getSize();
-    byte[] retval = new byte[size];
-    if (size > 0) {
-      getByteBuffer().position(DATA_OFFSET);
-      getByteBuffer().get(retval);
-    }
-    return retval;
-  }
+	private void write(DataOutputStream os, String s) throws IOException {
+		if (s == null) {
+			os.writeInt(-1);
+		} else {
+			byte[] b = encodeString(s);
+			os.writeInt(b.length);
+			if (b.length > 0) {
+				os.write(b);
+			}
+		}
+	}
 
-  public int getSize() {
-    return value.length - DATA_OFFSET;
-  }
+	/**
+	 * Return the entire encoded buffer
+	 * 
+	 * @return
+	 */
+	public byte[] getBuffer() {
+		return value;
+	}
 
-  public byte getType() {
-    getByteBuffer().position(TYPE_OFFSET);
-    return getByteBuffer().get();
-  }
+	/**
+	 * Return just the node data
+	 * 
+	 * @return
+	 */
+	@Override
+	public byte[] getData() throws IOException {
+		int size = getSize();
+		byte[] retval = new byte[size];
+		if (size > 0) {
+			getByteBuffer().position(DATA_OFFSET);
+			getByteBuffer().get(retval);
+		}
+		if ((getType() & _COMPRESSED) == _COMPRESSED)
+		{
+			DataInputStream input = null;
+			ByteArrayOutputStream output = null;
+			try {
+				input = new DataInputStream(new BufferedInputStream(
+	            		new GZIPInputStream(new ByteArrayInputStream(retval))));
+				output = new ByteArrayOutputStream();
+				IOUtils.copy(input, output);
+				retval = output.toByteArray();
+			}
+			finally {
+				IOUtils.closeQuietly( input );
+				IOUtils.closeQuietly( output );
+			}
+		}
+		return retval;
+	}
 
-  public static byte[] getRawIdx(int i) {
-    byte[] retval = new byte[4];
-    ByteBuffer.wrap(retval).order(ByteOrder.BIG_ENDIAN).putInt(i);
-    return retval;
-  }
+	public int getSize() {
+		return value.length - DATA_OFFSET;
+	}
 
-  @Override
-  public int hashCode() {
-    getByteBuffer().position(HASH_CODE_OFFSET);
-    return getByteBuffer().getInt();
-  }
+	public boolean isLiteral() {
+		return (getType() & NodeTypes._LIT) == NodeTypes._LIT;
+	}
 
-  @Override
-  public boolean equals(Object o) {
-    if (o instanceof SerializableNode) {
-      SerializableNode cn = (SerializableNode) o;
-      if (hashCode() == cn.hashCode() && getType() == cn.getType()
-          && getSize() == cn.getSize()) {
-        if (getSize() > 0) {
-          cn.getByteBuffer().position(DATA_OFFSET);
-          getByteBuffer().position(DATA_OFFSET);
-          int i = getByteBuffer().compareTo(cn.getByteBuffer());
-          if (i == 0) {
-            return true;
-          }
-        } else
-        {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+	@Override
+	public byte getType() {
+		getByteBuffer().position(TYPE_OFFSET);
+		return getByteBuffer().get();
+	}
 
-  public Node getNode() throws IOException {
-    Node retval = null;
-    if (node != null) {
-      retval = node.get();
-    }
-    if (retval == null) {
-      retval = extractNode();
-    }
-    return retval;
-  }
+	/**
+	 * Get the index as a byte
+	 * 
+	 * @param rawData
+	 * @return
+	 */
+	public static byte[] getRawIdx(byte[] src) {
+		byte[] retval = new byte[4];
+		System.arraycopy(src, IDX_OFFSET, retval, 0, 4);
+		return retval;
+	}
 
-  private String decodeString(byte[] b) {
-    try {
-      return new String(b, "UTF-8");
-    } catch (UnsupportedEncodingException e) { // should not happen
-      throw new RuntimeException(e);
-    }
-  }
+	public static byte[] getRawIdx(int i) {
+		byte[] retval = new byte[4];
+		ByteBuffer.wrap(retval).order(ByteOrder.BIG_ENDIAN).putInt(i);
+		return retval;
+	}
 
-  private String read(DataInputStream is) throws IOException {
-    int n = is.readInt();
-    if (n == -1) {
-      return null;
-    }
-    byte[] b = new byte[n];
-    if (n > 0) {
-      is.read(b);
-    }
-    return decodeString(b);
-  }
+	@Override
+	public int hashCode() {
+		getByteBuffer().position(HASH_CODE_OFFSET);
+		return getByteBuffer().getInt();
+	}
 
-  private Node extractNode() throws IOException {
+	@Override
+	public boolean equals(Object o) {
+		if (o instanceof SerializableNode) {
+			SerializableNode cn = (SerializableNode) o;
+			if (hashCode() == cn.hashCode() && getType() == cn.getType()
+					&& getSize() == cn.getSize()) {
+				if (getSize() > 0) {
+					cn.getByteBuffer().position(DATA_OFFSET);
+					getByteBuffer().position(DATA_OFFSET);
+					int i = getByteBuffer().compareTo(cn.getByteBuffer());
+					if (i == 0) {
+						return true;
+					}
+				} else {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 
-    Node lnode = null;
-    byte type = getType();
-    switch (type) {
-    case _ANON:
-      lnode = NodeFactory.createAnon(AnonId
-          .create(decodeString(getData())));
-      break;
+	private String decodeString(byte[] b) {
+		try {
+			return new String(b, "UTF-8");
+		} catch (UnsupportedEncodingException e) { // should not happen
+			throw new RuntimeException(e);
+		}
+	}
 
-    case _LIT:
-      InputStream bais = new ByteArrayInputStream(getData());
-      DataInputStream is = new DataInputStream(new BufferedInputStream(
-          bais));
-      String lex = read(is);
-      String lang = StringUtils.defaultIfBlank(read(is), null);
-      String dtURI = read(is);
-      is.close();
-      RDFDatatype dtype = StringUtils.isEmpty(dtURI) ? null : TypeMapper
-          .getInstance().getTypeByName(dtURI);
-      LiteralLabel ll = LiteralLabelFactory.create(lex, lang, dtype);
-      lnode = NodeFactory.createLiteral(ll);
-      break;
+	private String read(DataInputStream is) throws IOException {
+		int n = is.readInt();
+		if (n == -1) {
+			return null;
+		}
+		byte[] b = new byte[n];
+		if (n > 0) {
+			is.read(b);
+		}
+		return decodeString(b);
+	}
 
-    case _URI:
-      lnode = NodeFactory.createURI(decodeString(getData()));
-      break;
+	@Override
+	protected Node extractNode() throws IOException {
 
-    case _VAR:
-      lnode = NodeFactory.createVariable(decodeString(getData()));
-      break;
+		Node lnode = null;
+		byte type = getType();
+		switch (type & 0x0F) {
+		case _ANON:
+			lnode = NodeFactory.createAnon(AnonId
+					.create(decodeString(getData())));
+			break;
 
-    case _ANY:
-      lnode = Node.ANY;
-      break;
+		case _LIT:
+			InputStream bais = new ByteArrayInputStream(getData());
+			DataInputStream is = new DataInputStream(new BufferedInputStream(
+					bais));
+			String lex = read(is);
+			String lang = StringUtils.defaultIfBlank(read(is), null);
+			String dtURI = read(is);
+			is.close();
+			RDFDatatype dtype = StringUtils.isEmpty(dtURI) ? null : TypeMapper
+					.getInstance().getTypeByName(dtURI);
+			LiteralLabel ll = LiteralLabelFactory.create(lex, lang, dtype);
+			lnode = NodeFactory.createLiteral(ll);
+			break;
 
-    default:
-      throw new RuntimeException(String.format(
-          "Unable to parse node: %0o", type));
-    }
-    node = new SoftReference<Node>(lnode);
-    return lnode;
-  }
+		case _URI:
+			lnode = NodeFactory.createURI(decodeString(getData()));
+			break;
 
-  private byte[] encodeString(String s) {
-    try {
-      return s.getBytes("UTF-8");
-    } catch (UnsupportedEncodingException e) { // should not happen
-      throw new RuntimeException(e);
-    }
-  }
+		case _VAR:
+			lnode = NodeFactory.createVariable(decodeString(getData()));
+			break;
+
+		case _ANY:
+			lnode = Node.ANY;
+			break;
+
+		default:
+			throw new RuntimeException(String.format(
+					"Unable to parse node: %0o", type));
+		}
+		return lnode;
+	}
+
+	private byte[] encodeString(String s) {
+		try {
+			return s.getBytes("UTF-8");
+		} catch (UnsupportedEncodingException e) { // should not happen
+			throw new RuntimeException(e);
+		}
+	}
+	
+//	private void writeObject(java.io.ObjectOutputStream out)
+//		     throws IOException
+//		     {
+//		out.writeInt( value.length );
+//		out.write( value );
+//		     }
+//	
+//		 private void readObject(java.io.ObjectInputStream in)
+//		     throws IOException, ClassNotFoundException
+//		     {
+//			 int length = in.readInt();
+//			 value = new byte[length];
+//			 in.read( value );
+//			 super.
+//			 
+//		     }
 }

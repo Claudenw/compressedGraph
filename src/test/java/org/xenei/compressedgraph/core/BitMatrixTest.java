@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.junit.Test;
+import org.xenei.compressedgraph.EnumeratedNode;
 import org.xenei.compressedgraph.core.BitMatrix;
 import org.xenei.compressedgraph.core.BitMatrix.Idx;
 
@@ -359,14 +360,14 @@ public class BitMatrixTest {
 		assertEquals(new Idx(1, 1), iter.next());
 		assertFalse(iter.hasNext());
 
-		iter = matrix.find(1, BitConstants.WILD);
+		iter = matrix.find(1, EnumeratedNode.WILD);
 		assertTrue(iter.hasNext());
 		assertEquals(new Idx(1, 1), iter.next());
 		assertEquals(new Idx(1, 2), iter.next());
 		assertEquals(new Idx(1, 3), iter.next());
 		assertFalse(iter.hasNext());
 
-		iter = matrix.find(BitConstants.WILD, 100);
+		iter = matrix.find(EnumeratedNode.WILD, 100);
 		assertTrue(iter.hasNext());
 		assertEquals(new Idx(100, 100), iter.next());
 		assertEquals(new Idx(Integer.MAX_VALUE, 100), iter.next());
@@ -375,7 +376,7 @@ public class BitMatrixTest {
 		iter = matrix.find(5, 5);
 		assertFalse(iter.hasNext());
 
-		lst = matrix.find(BitConstants.WILD, BitConstants.WILD).toList();
+		lst = matrix.find(EnumeratedNode.WILD, EnumeratedNode.WILD).toList();
 		assertEquals(19, lst.size());
 
 	}

@@ -31,7 +31,8 @@ import javax.sql.rowset.serial.SerialException;
  * 
  */
 public class MySQLQuadBloom implements BloomCapabilities {
-	private static final Logger LOG = LoggerFactory.getLogger(MySQLQuadBloom.class);
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MySQLQuadBloom.class);
 
 	private Connection conn = null;
 	private PreparedStatement insert;
@@ -42,40 +43,48 @@ public class MySQLQuadBloom implements BloomCapabilities {
 	private PreparedStatement maxValue;
 
 	// "jdbc:mysql://localhost/test?user=%s&password=%s"
-	public MySQLQuadBloom(String url, String table) throws InstantiationException,
-			IllegalAccessException, ClassNotFoundException, SQLException {
+	public MySQLQuadBloom(String url, String table)
+			throws InstantiationException, IllegalAccessException,
+			ClassNotFoundException, SQLException {
 		Class.forName("com.mysql.jdbc.Driver").newInstance();
 		conn = DriverManager.getConnection(url);
-		insert = conn.prepareStatement(String.format("INSERT INTO %s SET id1=?, id2=?, id3=?, id4=?, data=?", table));
-		delete = conn.prepareStatement(String.format("DELETE FROM %s WHERE id1=? AND id2=? AND id3=? AND id4=? AND data=?", table));
-		findExact = conn.prepareStatement(String.format("SELECT data FROM %s " +
-				"WHERE id1=? " +
-				"AND id2=? " +
-				"AND id3=? " +
-				"AND id4=? "
-				, table));
-		findBloom = conn.prepareStatement(String.format("SELECT data FROM %1$s, bloomByteMap idx1, bloomByteMap idx2, bloomByteMap idx3, bloomByteMap idx4 " +
-				"WHERE %1$s.id1=idx1.value AND idx1.id=? " +
-				"AND %1$s.id2=idx2.value AND idx2.id=? " +
-				"AND %1$s.id3=idx3.value AND idx3.id=? " +
-				"AND %1$s.id4=idx4.value AND idx4.id=? "
-				, table));
-		count = conn.prepareStatement(String.format("SELECT count(*) FROM %s", table));
-		maxValue = conn.prepareStatement(String.format("SELECT max(id1), max(id2), max(id3), max(id4) from %s",table));		
+		insert = conn
+				.prepareStatement(String
+						.format("INSERT INTO %s SET id1=?, id2=?, id3=?, id4=?, data=?",
+								table));
+		delete = conn
+				.prepareStatement(String
+						.format("DELETE FROM %s WHERE id1=? AND id2=? AND id3=? AND id4=? AND data=?",
+								table));
+		findExact = conn.prepareStatement(String.format("SELECT data FROM %s "
+				+ "WHERE id1=? " + "AND id2=? " + "AND id3=? " + "AND id4=? ",
+				table));
+		findBloom = conn
+				.prepareStatement(String
+						.format("SELECT data FROM %1$s, bloomByteMap idx1, bloomByteMap idx2, bloomByteMap idx3, bloomByteMap idx4 "
+								+ "WHERE %1$s.id1=idx1.value AND idx1.id=? "
+								+ "AND %1$s.id2=idx2.value AND idx2.id=? "
+								+ "AND %1$s.id3=idx3.value AND idx3.id=? "
+								+ "AND %1$s.id4=idx4.value AND idx4.id=? ",
+								table));
+		count = conn.prepareStatement(String.format("SELECT count(*) FROM %s",
+				table));
+		maxValue = conn
+				.prepareStatement(String
+						.format("SELECT max(id1), max(id2), max(id3), max(id4) from %s",
+								table));
 	}
-	
-	public void populateByteMap() throws SQLException
-	{
-		PreparedStatement pstmt = conn.prepareStatement( "INSERT INTO bloomByteMap SET id=?, value=?" );
-		for (int i =0;i<=+0xFF;i++)
-		{
-			Iterator<ByteBuffer> iter = BloomIndex.getIndexIterator( (byte)i );
-			while (iter.hasNext())
-			{
-				int j = (int)(0xFF & iter.next().get(0)); 
-				pstmt.setByte(1, (byte) i );
-				pstmt.setByte(2, (byte) j );
-				System.out.println( pstmt.toString() );
+
+	public void populateByteMap() throws SQLException {
+		PreparedStatement pstmt = conn
+				.prepareStatement("INSERT INTO bloomByteMap SET id=?, value=?");
+		for (int i = 0; i <= +0xFF; i++) {
+			Iterator<ByteBuffer> iter = BloomIndex.getIndexIterator((byte) i);
+			while (iter.hasNext()) {
+				int j = 0xFF & iter.next().get(0);
+				pstmt.setByte(1, (byte) i);
+				pstmt.setByte(2, (byte) j);
+				System.out.println(pstmt.toString());
 				pstmt.execute();
 			}
 		}
@@ -180,12 +189,12 @@ public class MySQLQuadBloom implements BloomCapabilities {
 
 	@Override
 	public void delete(ByteBuffer bloomValue, ByteBuffer data) {
-		try {		
+		try {
 			Blob b = new SerialBlob(data.array());
-			delete.setByte( 1,  bloomValue.get(0));
-			delete.setByte( 2,  bloomValue.get(1));
-			delete.setByte( 3,  bloomValue.get(2));
-			delete.setByte( 4,  bloomValue.get(3));
+			delete.setByte(1, bloomValue.get(0));
+			delete.setByte(2, bloomValue.get(1));
+			delete.setByte(3, bloomValue.get(2));
+			delete.setByte(4, bloomValue.get(3));
 			delete.setBlob(5, b);
 			delete.executeUpdate();
 		} catch (SerialException e) {
@@ -194,24 +203,24 @@ public class MySQLQuadBloom implements BloomCapabilities {
 			LOG.error(e.getMessage(), e);
 		}
 	}
-	
+
 	@Override
 	public ExtendedIterator<ByteBuffer> find(ByteBuffer bloomValue,
 			boolean exact) {
 		ResultSet rs = null;
 		try {
 			if (exact) {
-				findExact.setByte( 1,  bloomValue.get(0));
-				findExact.setByte( 2,  bloomValue.get(1));
-				findExact.setByte( 3,  bloomValue.get(2));
-				findExact.setByte( 4,  bloomValue.get(3));
+				findExact.setByte(1, bloomValue.get(0));
+				findExact.setByte(2, bloomValue.get(1));
+				findExact.setByte(3, bloomValue.get(2));
+				findExact.setByte(4, bloomValue.get(3));
 				rs = findExact.executeQuery();
 				return WrappedIterator.create(new RSIterator(rs));
 			} else {
-				findBloom.setByte( 1,  bloomValue.get(0));
-				findBloom.setByte( 2,  bloomValue.get(1));
-				findBloom.setByte( 3,  bloomValue.get(2));
-				findBloom.setByte( 4,  bloomValue.get(3));
+				findBloom.setByte(1, bloomValue.get(0));
+				findBloom.setByte(2, bloomValue.get(1));
+				findBloom.setByte(3, bloomValue.get(2));
+				findBloom.setByte(4, bloomValue.get(3));
 				rs = findBloom.executeQuery();
 				return WrappedIterator.create(new RSIterator(rs));
 			}
