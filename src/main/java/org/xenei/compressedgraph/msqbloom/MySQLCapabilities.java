@@ -30,10 +30,6 @@ public class MySQLCapabilities implements DBCapabilities {
 
 	private static final Logger LOG = LoggerFactory
 			.getLogger(MySQLCapabilities.class);
-	// private final String schema;
-	// private final String tripleTbl;
-	// private final String literalTbl;
-	// private final String nodeTbl;
 
 	private final Connection connection;
 
@@ -41,32 +37,24 @@ public class MySQLCapabilities implements DBCapabilities {
 	private final PreparedStatement ps_delete;
 	private final PreparedStatement ps_saveTriple;
 	private final PreparedStatement ps_saveNode;
+	private final PreparedStatement ps_lastIdx;
 	private final PreparedStatement ps_nodeSearch;
 
-	// private final PreparedStatement ps_saveLiteral;
-	// private final PreparedStatement ps_literalSearch;
-	// private final PreparedStatement ps_literalDeleteSearch;
-	// private final PreparedStatement ps_literalUpdate;
-
 	private final PreparedStatement ps_spo;
-	// private final PreparedStatement ps_spoLit;
 	private final PreparedStatement ps_sp;
 	private final PreparedStatement ps_so;
-	// private final PreparedStatement ps_soLit;
 	private final PreparedStatement ps_s;
 	private final PreparedStatement ps_po;
-	// private final PreparedStatement ps_poLit;
 	private final PreparedStatement ps_p;
 	private final PreparedStatement ps_o;
-	// private final PreparedStatement ps_oLit;
 	private final PreparedStatement ps_all;
 
 	public MySQLCapabilities(Connection connection, String schema,
 			String triples, String nodes) throws SQLException {
 		this.connection = connection;
 
-		String selectPfx = "SELECT s.text, p.text, o.text FROM %1$s.%2$s t, %1$s.%3$s s, %1$s.%3$s p, %1$s.%3$s o "
-				+ "WHERE t.subject=s.idx AND t.predicate=p.idx AND t.predicate=o.idx %%1$s ";
+		String selectPfx = "SELECT s.data, p.data, o.data FROM %1$s.%2$s t, %1$s.%3$s s, %1$s.%3$s p, %1$s.%3$s o "
+				+ "WHERE t.subject=s.idx AND t.predicate=p.idx AND t.object=o.idx %%1$s ";
 
 		selectPfx = String.format(selectPfx, schema, triples, nodes);
 
@@ -80,12 +68,19 @@ public class MySQLCapabilities implements DBCapabilities {
 				"INSERT INTO %s.%s (subject,predicate,object) VALUES (?,?,?)",
 				schema, triples));
 		ps_saveNode = connection.prepareStatement(String.format(
-				"INSERT INTO %s.%s (type,hash,type,text) VALUES (?,?,?,?)",
+				"INSERT INTO %s.%s (data) VALUES (?)",
 				schema, nodes));
-		ps_nodeSearch = connection.prepareStatement(String.format(
-				"SELECT idx, text FROM %s.%s WHERE type=? AND text=?", schema,
-				nodes));
+		ps_lastIdx = connection.prepareStatement("SELECT LAST_INSERT_ID()");
+		
+//		ps_nodeSearch = connection.prepareStatement(String.format(
+//				"SELECT idx, data FROM %s.%s WHERE data=?", schema,
+//				nodes));
 
+		ps_nodeSearch = connection.prepareStatement(String.format(
+				"SELECT %s.register_node( ? )", schema ));
+		
+		
+//				nodes));
 		ps_spo = connection.prepareStatement(String.format(selectPfx,
 				" AND subject=? AND predicate=? AND object=?"));
 
@@ -111,34 +106,33 @@ public class MySQLCapabilities implements DBCapabilities {
 
 	}
 
+	private static byte[] getBlobData(Blob b) throws SQLException {
+		int len = (int) b.length();
+		return b.getBytes(1, len);
+	}
+	
 	private boolean blobEquals(Blob b1, Blob b2) throws SQLException {
 		if (b1.length() == b2.length()) {
-			long pos = 0;
-			while (pos <= b1.length()) {
-				if (!Arrays.equals(b1.getBytes(pos, 1024),
-						b2.getBytes(pos, 1024))) {
-					return false;
-				}
-				pos += 1024;
+			if (b1.length() == 0)
+			{
+				return true;
 			}
+			return Arrays.equals(getBlobData(b1), getBlobData(b2));
 		}
 		return false;
 	}
 
-	private boolean findNode(PreparedStatement ps, SerializableNode sn, Blob b1) {
+	@SuppressWarnings("resource")
+	private boolean findNode(SerializableNode sn, Blob b1) {
 		ResultSet rs = null;
-
+		 
 		try {
-			ps.setByte(1, sn.getType());
-			ps.setBlob(2, b1);
-			rs = ps.executeQuery();
+			ps_nodeSearch.setBlob(1, b1);
+			rs = ps_nodeSearch.executeQuery();
 
-			while (rs.next()) {
-				Blob b2 = rs.getBlob(2);
-				if (blobEquals(b1, b2)) {
-					sn.setIdx(rs.getInt(1));
-					return true;
-				}
+			if (rs.next()) {
+				sn.setIdx(rs.getInt(1));
+				return true;
 			}
 			return false;
 		} catch (SQLException e) {
@@ -151,26 +145,21 @@ public class MySQLCapabilities implements DBCapabilities {
 
 	@Override
 	public SerializableNode register(Node node) throws IOException {
-
-		if (node.isVariable()) {
-			throw new IOException("variable nodes many not be stored in db");
-		}
-
-		// user execution sets and LAST_INSERT_ID() to get
 		SerializableNode sn = new SerializableNode(node);
 		ResultSet rs = null;
 		try {
-			Blob b = new SerialBlob(sn.getData());
-			if (!findNode(ps_nodeSearch, sn, b)) {
-				ps_saveNode.setByte(1, sn.getType());
+			Blob b = new SerialBlob(sn.getBuffer());
+			if (!findNode(sn, b)) {
 				ps_saveNode.setBlob(1, b);
-				ps_saveNode.execute();
-
-				rs = ps_nodeSearch.executeQuery();
-
-				if (rs.next()) {
-					sn.setIdx(rs.getInt(1));
-				}
+				ps_saveNode.executeUpdate();
+				rs = ps_lastIdx.executeQuery();
+				
+			    if (rs.next()) {
+			        sn.setIdx(rs.getInt(1));
+			    } else {
+			    	LOG.error("Unable to retrieve new node id "+sn);
+					throw new IOException( "Unable to retrieve new node id");
+			    }
 			}
 		} catch (SerialException e) {
 			LOG.error("Unable to write blob", e);
@@ -189,15 +178,11 @@ public class MySQLCapabilities implements DBCapabilities {
 
 	@Override
 	public void save(SerializableNode s, SerializableNode p, SerializableNode o) {
-		if (s.isLiteral() || p.isLiteral()) {
-			throw new IllegalArgumentException("S and P must not be Literal");
-		}
-
 		try {
 			ps_saveTriple.setInt(1, s.getIdx());
 			ps_saveTriple.setInt(2, p.getIdx());
-			ps_saveTriple.setByte(3, (byte) (o.isLiteral() ? 1 : 0));
-			ps_saveTriple.setInt(4, o.getIdx());
+			ps_saveTriple.setInt(3, o.getIdx());
+			ps_saveTriple.execute();
 		} catch (SQLException e) {
 			LOG.warn("Error saving literal triple", e);
 		}
@@ -206,15 +191,11 @@ public class MySQLCapabilities implements DBCapabilities {
 	@Override
 	public void delete(SerializableNode s, SerializableNode p,
 			SerializableNode o) {
-		if (s.isLiteral() || p.isLiteral()) {
-			throw new IllegalArgumentException("S and P must not be WILD");
-		}
-
+		
 		try {
 			ps_delete.setInt(1, s.getIdx());
 			ps_delete.setInt(2, p.getIdx());
-			ps_delete.setByte(3, (byte) (o.isLiteral() ? 1 : 0));
-			ps_delete.setInt(4, o.getIdx());
+			ps_delete.setInt(3, o.getIdx());
 		} catch (SQLException e) {
 			LOG.warn("Error saving literal triple", e);
 		}
@@ -249,8 +230,7 @@ public class MySQLCapabilities implements DBCapabilities {
 	@Override
 	public ExtendedIterator<Triple> find(SerializableNode s,
 			SerializableNode p, SerializableNode o) {
-		int hash = s.hashCode() | p.hashCode() | o.hashCode();
-
+		
 		PreparedStatement stmt = null;
 		try {
 			if (isDefined(s)) {
@@ -317,7 +297,6 @@ public class MySQLCapabilities implements DBCapabilities {
 
 	private PreparedStatement do_S(SerializableNode s) throws SQLException {
 		ps_s.setInt(1, s.getIdx());
-		ps_s.setInt(2, s.getIdx());
 		return ps_s;
 	}
 
@@ -331,12 +310,10 @@ public class MySQLCapabilities implements DBCapabilities {
 
 	private PreparedStatement do_P(SerializableNode p) throws SQLException {
 		ps_p.setInt(1, p.getIdx());
-		ps_p.setInt(2, p.getIdx());
 		return ps_p;
 	}
 
 	private PreparedStatement do_O(SerializableNode o) throws SQLException {
-
 		ps_o.setInt(1, o.getIdx());
 		return ps_o;
 
@@ -364,14 +341,11 @@ public class MySQLCapabilities implements DBCapabilities {
 				try {
 					if (rs.next()) {
 						Blob b = rs.getBlob(1);
-						SerializableNode s = new SerializableNode(b.getBytes(
-								b.length(), 0));
+						SerializableNode s = new SerializableNode(getBlobData(b));
 						b = rs.getBlob(2);
-						SerializableNode p = new SerializableNode(b.getBytes(
-								b.length(), 0));
+						SerializableNode p = new SerializableNode(getBlobData(b));
 						b = rs.getBlob(3);
-						SerializableNode o = new SerializableNode(b.getBytes(
-								b.length(), 0));
+						SerializableNode o = new SerializableNode(getBlobData(b));
 						next = new Triple(s.getNode(), p.getNode(), o.getNode());
 						used = false;
 					} else {
@@ -394,6 +368,7 @@ public class MySQLCapabilities implements DBCapabilities {
 			if (!hasNext()) {
 				throw new NoSuchElementException();
 			}
+			used=true;
 			return next;
 		}
 
@@ -405,8 +380,3 @@ public class MySQLCapabilities implements DBCapabilities {
 	}
 
 }
-
-/*
- * 
- * CREATE FUNCTION addLiteral( int, byte type int hash blob
- */

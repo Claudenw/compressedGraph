@@ -177,21 +177,22 @@ public class SerializableNode extends StoredNode implements NodeTypes,
 		if (size > 0) {
 			getByteBuffer().position(DATA_OFFSET);
 			getByteBuffer().get(retval);
-		}
-		if ((getType() & _COMPRESSED) == _COMPRESSED)
-		{
-			DataInputStream input = null;
-			ByteArrayOutputStream output = null;
-			try {
-				input = new DataInputStream(new BufferedInputStream(
-	            		new GZIPInputStream(new ByteArrayInputStream(retval))));
-				output = new ByteArrayOutputStream();
-				IOUtils.copy(input, output);
-				retval = output.toByteArray();
-			}
-			finally {
-				IOUtils.closeQuietly( input );
-				IOUtils.closeQuietly( output );
+		
+			if ((getType() & _COMPRESSED) == _COMPRESSED)
+			{
+				DataInputStream input = null;
+				ByteArrayOutputStream output = null;
+				try {
+					input = new DataInputStream(new BufferedInputStream(
+		            		new GZIPInputStream(new ByteArrayInputStream(retval))));
+					output = new ByteArrayOutputStream();
+					IOUtils.copy(input, output);
+					retval = output.toByteArray();
+				}
+				finally {
+					IOUtils.closeQuietly( input );
+					IOUtils.closeQuietly( output );
+				}
 			}
 		}
 		return retval;
